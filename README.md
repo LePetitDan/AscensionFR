@@ -25,13 +25,19 @@ texte que tu peux ouvrir et lire. **Aucun programme à lancer.**
    déjà un dossier `Interface` (souvent `…\resources\ascension-live`).
    Windows te demande de **fusionner le dossier `Interface`** → dis **oui**
    (ça n'efface aucun de tes autres addons, ça ajoute les nôtres à côté).
-3. Dans le lanceur Ascension → onglet **Add-ons** → coche
-   **« Autoriser les modules complémentaires sans lanceur »**.
-4. Lance le jeu. **C'est en français !** 🎉
+3. Lance le jeu jusqu'à l'écran de **sélection des personnages**. En bas à
+   gauche, clique sur **« AddOns »**, coche **« Load Out of Date AddOns »**
+   (charger les AddOns périmés) en haut, vérifie qu'**AscensionFR** est
+   coché, puis **Applique**.
+4. Connecte-toi. **C'est en français !** 🎉
 
 > ✅ Tu dois obtenir `Interface\AddOns\AscensionFR`,
 > `Interface\AddOns\AscensionFR_Repliques` et `Interface\PTRXML`.
 > L'extraction place tout au bon endroit toute seule.
+>
+> 💡 Le bouton **« AddOns »** à la sélection des personnages est la méthode
+> qui marche à tous les coups. Inutile de chercher une case dans le lanceur :
+> selon les versions elle change de nom ou n'existe pas.
 
 ### ⚡ Méthode installateur *(plus simple, mais binaire non signé)*
 
@@ -40,7 +46,8 @@ aussi disponible.
 
 1. **[Télécharge l'installateur](../../releases/latest)** (`AscensionFR_Installateur.exe`).
 2. **Double-clique** dessus. Une fenêtre s'ouvre et **trouve ton jeu toute seule**.
-3. Clique sur **Installer**, puis fais l'étape 3 ci-dessus (lanceur → Add-ons).
+3. Clique sur **Installer**, puis fais l'étape 3 ci-dessus (bouton **AddOns**
+   à la sélection des personnages).
 
 > ⚠️ **Windows affichera « Windows a protégé votre PC »** : l'installateur
 > n'est pas signé (un certificat coûte cher). Clique sur
