@@ -1,4 +1,6 @@
-<h1 align="center">🇫🇷 Ascension FR</h1>
+<p align="center">
+  <img src="assets/banner.png" alt="Ascension FR — traduction française" width="100%">
+</p>
 
 <p align="center">
   <b>La traduction française complète pour <a href="https://ascension.gg">Project Ascension</a></b><br>
@@ -8,17 +10,15 @@
 <p align="center">
   <a href="../../releases/latest"><b>⬇️ TÉLÉCHARGER LA DERNIÈRE VERSION</b></a>
   &nbsp;·&nbsp;
-  <a href="https://discord.gg/3X2tCCh3a"><b>💬 Discord</b></a>
+  <a href="https://discord.gg/kFJGDJbeay"><b>💬 Discord</b></a>
 </p>
 
 ---
 
-## 📥 Installation — deux méthodes, au choix
-
-### 🗂️ Méthode manuelle *(recommandée — que des fichiers, rien à exécuter)*
+## 📥 Installation (2 minutes, que des fichiers)
 
 C'est une traduction : rien que des fichiers d'addon (`.lua` / `.xml`), du
-texte que tu peux ouvrir et lire. **Aucun programme à lancer.**
+texte que tu peux ouvrir et lire. **Aucun programme à installer, aucun `.exe`.**
 
 1. **[Télécharge `AscensionFR_manuel.zip`](../../releases/latest).**
 2. **Extrais-le dans le dossier de ton jeu Ascension** — celui qui contient
@@ -38,22 +38,6 @@ texte que tu peux ouvrir et lire. **Aucun programme à lancer.**
 > 💡 Le bouton **« AddOns »** à la sélection des personnages est la méthode
 > qui marche à tous les coups. Inutile de chercher une case dans le lanceur :
 > selon les versions elle change de nom ou n'existe pas.
-
-### ⚡ Méthode installateur *(plus simple, mais binaire non signé)*
-
-Si tu préfères ne rien avoir à ranger, un installateur clique-bouton est
-aussi disponible.
-
-1. **[Télécharge l'installateur](../../releases/latest)** (`AscensionFR_Installateur.exe`).
-2. **Double-clique** dessus. Une fenêtre s'ouvre et **trouve ton jeu toute seule**.
-3. Clique sur **Installer**, puis fais l'étape 3 ci-dessus (bouton **AddOns**
-   à la sélection des personnages).
-
-> ⚠️ **Windows affichera « Windows a protégé votre PC »** : l'installateur
-> n'est pas signé (un certificat coûte cher). Clique sur
-> **« Informations complémentaires »** puis **« Exécuter quand même »**.
-> Tu préfères ne pas exécuter de binaire ? **Prends la méthode manuelle** —
-> elle fait exactement la même chose : copier les fichiers d'addon.
 
 ## ✅ Ce qui est traduit
 
@@ -101,8 +85,19 @@ une nouvelle version est publiée ici.
 `AscensionFR_Repliques` dans `Interface\AddOns`, et `PTRXML` dans `Interface`.
 
 **Un texte est faux ou en anglais ?** Signale-le sur le
-[Discord](https://discord.gg/3X2tCCh3a) ou en [issue](../../issues) —
+[Discord](https://discord.gg/kFJGDJbeay) ou en [issue](../../issues) —
 chaque retour améliore la suite.
+
+## 💛 Soutenir le projet
+
+La traduction est **gratuite** et le restera — rien n'est jamais bloqué
+derrière un don. Mais si elle te plaît et que tu veux soutenir le temps passé
+(et les mises à jour à venir), tu peux offrir un café. C'est totalement
+optionnel, et ça aide à garder la motivation. 🙏
+
+<p align="center">
+  <a href="https://buymeacoffee.com/lepetitdan"><b>☕ M'offrir un café — Buy Me a Coffee</b></a>
+</p>
 
 ---
 
