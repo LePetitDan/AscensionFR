@@ -13,19 +13,40 @@
 
 ---
 
-## 📥 Installation (2 minutes, aucune connaissance requise)
+## 📥 Installation — deux méthodes, au choix
+
+### 🗂️ Méthode manuelle *(recommandée — que des fichiers, rien à exécuter)*
+
+C'est une traduction : rien que des fichiers d'addon (`.lua` / `.xml`), du
+texte que tu peux ouvrir et lire. **Aucun programme à lancer.**
+
+1. **[Télécharge `AscensionFR_manuel.zip`](../../releases/latest).**
+2. **Extrais-le dans le dossier de ton jeu Ascension** — celui qui contient
+   déjà un dossier `Interface` (souvent `…\resources\ascension-live`).
+   Windows te demande de **fusionner le dossier `Interface`** → dis **oui**
+   (ça n'efface aucun de tes autres addons, ça ajoute les nôtres à côté).
+3. Dans le lanceur Ascension → onglet **Add-ons** → coche
+   **« Autoriser les modules complémentaires sans lanceur »**.
+4. Lance le jeu. **C'est en français !** 🎉
+
+> ✅ Tu dois obtenir `Interface\AddOns\AscensionFR`,
+> `Interface\AddOns\AscensionFR_Repliques` et `Interface\PTRXML`.
+> L'extraction place tout au bon endroit toute seule.
+
+### ⚡ Méthode installateur *(plus simple, mais binaire non signé)*
+
+Si tu préfères ne rien avoir à ranger, un installateur clique-bouton est
+aussi disponible.
 
 1. **[Télécharge l'installateur](../../releases/latest)** (`AscensionFR_Installateur.exe`).
 2. **Double-clique** dessus. Une fenêtre s'ouvre et **trouve ton jeu toute seule**.
-3. Clique sur **Installer**.
-4. Dans le lanceur Ascension → onglet **Add-ons** → coche
-   **« Autoriser les modules complémentaires sans lanceur »**.
-5. Lance le jeu. **C'est en français !** 🎉
+3. Clique sur **Installer**, puis fais l'étape 3 ci-dessus (lanceur → Add-ons).
 
-> ⚠️ **Windows va afficher « Windows a protégé votre PC »** au premier lancement.
-> C'est normal : l'installateur n'est pas signé (un certificat coûte cher).
-> Clique sur **« Informations complémentaires »** puis **« Exécuter quand même »**.
-> Si tu préfères, un `.zip` est aussi disponible dans chaque version.
+> ⚠️ **Windows affichera « Windows a protégé votre PC »** : l'installateur
+> n'est pas signé (un certificat coûte cher). Clique sur
+> **« Informations complémentaires »** puis **« Exécuter quand même »**.
+> Tu préfères ne pas exécuter de binaire ? **Prends la méthode manuelle** —
+> elle fait exactement la même chose : copier les fichiers d'addon.
 
 ## ✅ Ce qui est traduit
 
