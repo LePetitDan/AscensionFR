@@ -7,6 +7,8 @@
 
 <p align="center">
   <a href="../../releases/latest"><b>⬇️ TÉLÉCHARGER LA DERNIÈRE VERSION</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://discord.gg/3X2tCCh3a"><b>💬 Discord</b></a>
 </p>
 
 ---
@@ -71,7 +73,8 @@ une nouvelle version est publiée ici.
 `AscensionFR_Repliques` dans `Interface\AddOns`, et `PTRXML` dans `Interface`.
 
 **Un texte est faux ou en anglais ?** Signale-le sur le
-[Discord](#) ou en [issue](../../issues) — chaque retour améliore la suite.
+[Discord](https://discord.gg/3X2tCCh3a) ou en [issue](../../issues) —
+chaque retour améliore la suite.
 
 ---
 
