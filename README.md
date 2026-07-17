@@ -38,12 +38,16 @@ texte que tu peux ouvrir et lire. **Aucun programme à installer, aucun `.exe`.*
 > 💡 Le bouton **« AddOns »** à la sélection des personnages est la méthode
 > qui marche à tous les coups. Inutile de chercher une case dans le lanceur :
 > selon les versions elle change de nom ou n'existe pas.
+>
+> 🔄 **Déjà une version installée ?** Extrais simplement le nouveau zip
+> par-dessus (dis « oui » pour remplacer les fichiers), puis `/reload` en jeu
+> ou reconnecte-toi. Tes réglages sont conservés.
 
 ## ✅ Ce qui est traduit
 
 - **Quêtes** — titres, objectifs, descriptions, récompenses
 - **Objets** — noms, descriptions, effets (« Utiliser : … »)
-- **Sorts et talents** — noms et info-bulles, valeurs comprises
+- **Sorts, talents, buffs et débuffs** — noms et info-bulles, valeurs comprises
 - **Interface** — menus, boutons, fenêtres, info-bulles
 - **Écran de création** — races, classes, fiches techniques, rôles
 - **Dialogues et paroles des PNJ** dans le chat
@@ -63,6 +67,19 @@ française, à partir de bases de données livrées avec l'addon.
 - **Un texte reste en anglais ?** Le jeu est immense : c'est possible. Tout
   le reste continue de fonctionner. En jeu, tape `/afr` pour le panneau de
   la traduction.
+
+## 🤝 Aider la traduction
+
+Le jeu est immense — impossible de tout traduire seul. Alors l'addon **note
+tout seul** les textes encore en anglais que tu croises, et tu peux les
+partager en 30 secondes :
+
+1. En jeu, tape **`/afr`** → onglet **« Aider la traduction »**.
+2. Clique sur **« Copier mon rapport »**.
+3. Colle-le sur le [Discord](https://discord.gg/kFJGDJbeay).
+
+*(Système en test, mais déjà en place.)* Chaque classe et chaque zone que tu
+joues font avancer la traduction pour **tout le monde**. 💜
 
 ## 💡 Pourquoi ce projet
 
