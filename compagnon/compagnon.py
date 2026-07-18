@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import urllib.request
 import webbrowser
 import zipfile
@@ -269,6 +270,26 @@ def est_table(v):
     return hasattr(v, "items")
 
 
+def lire_stats(jeu):
+    """(nombre de textes traduits actifs, entrées en attente dans le rapport),
+    lus dans la sauvegarde de l'addon. L'addon y note son total à chaque
+    session (DernierTotal) ; l'attente est ce que « Envoyer » partirait."""
+    total = None
+    for chemin in fichiers_sauvegarde(jeu):
+        try:
+            saved = lire_sauvegarde(chemin)
+            t = saved and saved["DernierTotal"]
+            if t:
+                total = max(total or 0, int(t))
+        except Exception:
+            continue
+    try:
+        _, attente = construire_rapport(jeu)
+    except Exception:
+        attente = 0
+    return total, attente
+
+
 def envoyer_rapport_discord(rapport):
     """Poste le rapport en pièce jointe .txt sur le salon des rapports (via le
     webhook). Lève en cas d'échec — l'appelant se replie alors sur la copie."""
@@ -368,8 +389,8 @@ class Compagnon(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Ascension FR — Compagnon")
-        self.geometry("540x640")
-        self.minsize(500, 600)
+        self.geometry("540x680")
+        self.minsize(500, 640)
         self.configure(fg_color=FOND)
         try:
             self.iconbitmap(ressource("logo.ico"))
@@ -387,6 +408,7 @@ class Compagnon(ctk.CTk):
         self._construire()
         self._rafraichir_jeu()
         self.after(300, self.verifier_version)
+        self.after(600, self.rafraichir_stats)
 
     # --- mise en page (« launcher moderne » : sombre, plat, accent doré) --- #
     def _cadre(self, entete):
@@ -449,6 +471,9 @@ class Compagnon(ctk.CTk):
         self.lbl_version = ctk.CTkLabel(bloc2, text="Vérification…",
                                         text_color=TEXTE)
         self.lbl_version.pack(anchor="w", padx=16)
+        self.lbl_stats = ctk.CTkLabel(bloc2, text="", text_color=DISCRET,
+                                      font=ctk.CTkFont(size=12))
+        self.lbl_stats.pack(anchor="w", padx=16)
         self.btn_maj = self._bouton_principal(bloc2,
                                               "Vérifier les mises à jour",
                                               self.action_maj)
@@ -478,6 +503,10 @@ class Compagnon(ctk.CTk):
                     "le fichier qu'à ce moment-là.)")
         ctk.CTkLabel(bloc3, justify="left", text_color=DISCRET, text=aide
                      ).pack(anchor="w", padx=16)
+        self.lbl_attente = ctk.CTkLabel(bloc3, text="",
+                                        text_color=DISCRET,
+                                        font=ctk.CTkFont(size=12))
+        self.lbl_attente.pack(anchor="w", padx=16, pady=(4, 0))
         if WEBHOOK_RAPPORTS:
             self.btn_envoyer = self._bouton_principal(
                 bloc3, "📨  Envoyer mon rapport", self.envoyer_rapport,
@@ -541,6 +570,35 @@ class Compagnon(ctk.CTk):
                 self.verifier_version()
                 return
         self.etat("Ce dossier ne contient pas « Interface ».", ORANGE)
+
+    # --- statistiques ------------------------------------------------------ #
+    def rafraichir_stats(self):
+        if not jeu_valide(self.jeu):
+            return
+
+        def travail():
+            try:
+                total, attente = lire_stats(self.jeu)
+            except Exception:
+                total, attente = None, 0
+            self.after(0, lambda: self._montrer_stats(total, attente))
+        threading.Thread(target=travail, daemon=True).start()
+
+    def _montrer_stats(self, total, attente):
+        if total:
+            self.lbl_stats.configure(
+                text="🇫🇷  %s textes français actifs sur ton jeu"
+                     % format(total, ",").replace(",", " "))
+        dernier = self.cfg.get("dernier_envoi")
+        if attente > 0:
+            texte = "%d entrée(s) prêtes à partir dans ton rapport" % attente
+            if dernier:
+                texte += "  ·  dernier envoi : %s" % dernier
+            self.lbl_attente.configure(text=texte, text_color=ACCENT)
+        elif dernier:
+            self.lbl_attente.configure(
+                text="Rien de nouveau à signaler  ·  dernier envoi : %s"
+                     % dernier, text_color=DISCRET)
 
     # --- mise à jour ------------------------------------------------------- #
     def verifier_version(self):
@@ -743,6 +801,8 @@ class Compagnon(ctk.CTk):
         self.btn_envoyer.configure(text="✓  Rapport envoyé — merci !")
         self.etat("Rapport envoyé ! Chaque rapport fait avancer la "
                   "traduction. 💜", VERT)
+        self.cfg["dernier_envoi"] = time.strftime("%d/%m/%Y")
+        sauver_config(self.cfg)
 
     def _envoi_rate(self, rapport):
         self.btn_envoyer.configure(state="normal",
