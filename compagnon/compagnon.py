@@ -95,17 +95,21 @@ def chercher_jeu():
         racine = disque + ":\\"
         if not os.path.isdir(racine):
             continue
-        candidats += [
-            os.path.join(racine, "Program Files", "Ascension Launcher",
-                         "resources", "ascension-live"),
-            os.path.join(racine, "Ascension Launcher", "resources",
-                         "ascension-live"),
-            os.path.join(racine, "Ascension", "resources", "ascension-live"),
-        ]
+        # Deux dispositions vues en vrai : resources\ascension-live (ancienne)
+        # et resources\client (celle du launcher actuel — vu chez un joueur).
+        for fin in (("resources", "ascension-live"), ("resources", "client")):
+            candidats += [
+                os.path.join(racine, "Program Files", "Ascension Launcher",
+                             *fin),
+                os.path.join(racine, "Ascension Launcher", *fin),
+                os.path.join(racine, "Ascension", *fin),
+            ]
         try:
             for dossier in os.listdir(racine):
                 candidats.append(os.path.join(racine, dossier, "resources",
                                               "ascension-live"))
+                candidats.append(os.path.join(racine, dossier, "resources",
+                                              "client"))
                 candidats.append(os.path.join(racine, dossier,
                                               "ascension-live"))
         except OSError:
@@ -528,7 +532,9 @@ class Compagnon(ctk.CTk):
         # nous-mêmes jusqu'au jeu.
         for essai in (choix,
                       os.path.join(choix, "resources", "ascension-live"),
-                      os.path.join(choix, "ascension-live")):
+                      os.path.join(choix, "resources", "client"),
+                      os.path.join(choix, "ascension-live"),
+                      os.path.join(choix, "client")):
             if jeu_valide(essai):
                 self.jeu = essai
                 self._rafraichir_jeu()
@@ -550,6 +556,9 @@ class Compagnon(ctk.CTk):
     def _montrer_version(self, derniere, url, url_exe):
         self.derniere, self.url_zip = derniere, url
         self.url_exe = url_exe
+        # Toute nouvelle vérification rend au bouton son rôle normal (il a pu
+        # devenir « Relancer en administrateur » après un refus d'écriture).
+        self.btn_maj.configure(command=self.action_maj)
         # Le Compagnon lui-même a-t-il une version plus récente ?
         if derniere and en_tuple(derniere) > en_tuple(VERSION_COMPAGNON):
             self.lbl_maj_compagnon.pack(anchor="w", padx=16, pady=(0, 10))
@@ -615,6 +624,11 @@ class Compagnon(ctk.CTk):
                     text="Installation…"))
                 installer_zip(chemin, self.jeu)
                 self.after(0, self._maj_finie)
+            except PermissionError:
+                # Jeu installé dans un dossier protégé par Windows (Program
+                # Files) : il faut les droits administrateur pour y écrire.
+                # (2e signalement de Trey, jour du lancement.)
+                self.after(0, self._demander_admin)
             except Exception as e:
                 # err=e : la variable d'un « except » disparaît à la fin du
                 # bloc ; une lambda qui la lit plus tard planterait en silence
@@ -631,6 +645,33 @@ class Compagnon(ctk.CTk):
     def _maj_ratee(self, e):
         self.btn_maj.configure(state="normal", text="Réessayer")
         self.etat("Échec : %s" % e, ROUGE)
+
+    def _demander_admin(self):
+        self.btn_maj.configure(state="normal",
+                               text="🛡  Relancer en administrateur",
+                               command=self._relancer_admin)
+        self.etat("Ton jeu est dans un dossier protégé par Windows (Program "
+                  "Files) : il faut les droits administrateur pour y écrire.",
+                  ORANGE)
+
+    def _relancer_admin(self):
+        """Redémarre l'appli avec les droits administrateur (fenêtre UAC de
+        Windows), pour pouvoir écrire dans Program Files."""
+        import ctypes
+        if getattr(sys, "frozen", False):
+            programme, arguments = sys.executable, ""
+        else:                              # mode script (développement)
+            programme = sys.executable
+            arguments = '"%s"' % os.path.abspath(__file__)
+        r = ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", programme, arguments, None, 1)
+        if r <= 32:                        # UAC refusé ou échec du lancement
+            self.etat("Élévation refusée — tu peux aussi faire clic droit "
+                      "sur le Compagnon → « Exécuter en tant "
+                      "qu'administrateur ».", ORANGE)
+            self.btn_maj.configure(text="🛡  Relancer en administrateur")
+            return
+        self.after(300, self.destroy)
 
     # --- auto-mise à jour du Compagnon lui-même ---------------------------- #
     def maj_compagnon(self):
