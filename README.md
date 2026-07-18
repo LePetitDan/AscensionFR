@@ -43,6 +43,23 @@ texte que tu peux ouvrir et lire. **Aucun programme à installer, aucun `.exe`.*
 > par-dessus (dis « oui » pour remplacer les fichiers), puis `/reload` en jeu
 > ou reconnecte-toi. Tes réglages sont conservés.
 
+## 🖥️ Le Compagnon (optionnel)
+
+Pour ceux qui préfèrent le confort : une petite application qui **installe et
+met à jour la traduction en un clic**, et copie ton **rapport de
+contribution** pour le Discord.
+
+- **[Télécharger `AscensionFR_Compagnon.exe`](../../releases/latest)** —
+  pose-le où tu veux, double-clique, c'est tout.
+- **Transparence** : [code source ouvert](compagnon/) (un seul fichier Python,
+  lisible). Aucune donnée envoyée : le rapport est copié dans **ton**
+  presse-papiers, c'est toi qui le colles.
+- Au premier lancement, Windows SmartScreen peut demander confirmation
+  (programme non signé d'un petit projet — c'est attendu) : « Informations
+  complémentaires » → « Exécuter quand même ».
+- L'installation **manuelle** ci-dessus reste bien sûr toujours possible :
+  le Compagnon est un plus, jamais une obligation.
+
 ## ✅ Ce qui est traduit
 
 - **Quêtes** — titres, objectifs, descriptions, récompenses
