@@ -2,3 +2,6 @@
 # (bien plus adapté pour des fichiers de 10 Mo, et versionnés proprement).
 *.exe
 *.zip
+
+__pycache__/
+*.pyc

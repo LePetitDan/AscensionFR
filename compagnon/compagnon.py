@@ -54,7 +54,7 @@ PAGE_RELEASES = "https://github.com/" + DEPOT + "/releases"
 # Version de CETTE application (alignée sur la release qui l'embarque). Quand
 # une release plus récente sort, le Compagnon propose son propre remplacement
 # (lien vers la page de téléchargement) en plus de mettre à jour l'addon.
-VERSION_COMPAGNON = "1.5"
+VERSION_COMPAGNON = "1.6"
 
 # Salon des rapports : URL du webhook Discord (fournie par le mainteneur).
 # VIDE -> le bouton « Envoyer » n'existe pas, seul « Copier » reste (aucun
@@ -63,6 +63,14 @@ VERSION_COMPAGNON = "1.5"
 # des numéros de sorts/objets, jamais d'information personnelle.
 WEBHOOK_RAPPORTS = ""    # renseigné uniquement dans l'exe distribué
 DISCORD = "https://discord.gg/kFJGDJbeay"
+# Soutien au créateur. La traduction reste gratuite : le bouton est volontaire-
+# ment secondaire (contour seul) pour ne pas concurrencer l'envoi de rapport.
+SOUTIEN = "https://buymeacoffee.com/lepetitdan"
+# Réseaux du créateur : de simples liens texte, jamais des boutons — ce n'est
+# pas l'objet de l'application, ils ne doivent attirer l'œil que si on les
+# cherche.
+TWITCH = "https://www.twitch.tv/lepetitdan"
+YOUTUBE = "https://www.youtube.com/@LePetitDan"
 ZIP_ATTENDU = "AscensionFR_manuel.zip"
 EXE_ATTENDU = "AscensionFR_Compagnon.exe"
 UA = {"User-Agent": "AscensionFR-Compagnon"}
@@ -306,10 +314,25 @@ def lire_stats(jeu):
         except Exception:
             continue
     try:
-        _, attente = construire_rapport(jeu)
+        # Ce qui reste VRAIMENT à partir : les entrées déjà envoyées ne
+        # comptent plus (sinon le chiffre ne bougeait jamais).
+        _, attente, _ = construire_rapport(jeu, deja_envoyees())
     except Exception:
         attente = 0
     return total, attente
+
+
+def deja_envoyees():
+    """Empreintes des entrées déjà parties, mémorisées par le Compagnon."""
+    return set(charger_config().get("envoyees") or [])
+
+
+def noter_envoyees(cfg, empreintes):
+    """Ajoute les entrées qui viennent de partir. On plafonne la liste :
+    elle ne sert qu'à ne pas se répéter, inutile de la garder à vie."""
+    mémoire = list(cfg.get("envoyees") or []) + list(empreintes)
+    cfg["envoyees"] = mémoire[-20000:]
+    sauver_config(cfg)
 
 
 ROYAUME_CIBLE = "conquest of azeroth"    # on ne collecte QUE ce royaume
@@ -414,9 +437,60 @@ def envoyer_rapport_discord(rapport, caches=None):
         pass                               # 2xx = envoyé ; sinon une exception
 
 
-def construire_rapport(jeu):
+def empreinte(texte):
+    """Petite signature d'une entrée, pour se souvenir qu'elle est partie."""
+    import hashlib
+    return hashlib.md5(texte.encode("utf-8", "replace")).hexdigest()[:12]
+
+
+def paires_triees(table):
+    """Parcours STABLE d'une table Lua. Sans tri, l'ordre change d'un appel à
+    l'autre : la même entrée prenait alors deux signatures différentes et
+    repartait indéfiniment (constaté : 2 entrées sur 33 revenaient)."""
+    def cle(paire):
+        try:
+            return (0, float(paire[0]), "")
+        except (TypeError, ValueError):
+            return (1, 0.0, str(paire[0]))
+    return sorted(table.items(), key=cle)
+
+
+def aplatir(valeur, profondeur=0):
+    """Rend une valeur lisible, même quand elle contient des tables imbriquées.
+
+    Sans cela, une table dans une table s'écrivait « <Lua table at 0x...> » :
+    le contenu du signalement était PERDU, et l'adresse mémoire changeant à
+    chaque lecture, l'entrée paraissait toujours neuve."""
+    if est_table(valeur):
+        if profondeur >= 4:                # garde-fou anti-boucle
+            return "…"
+        return " / ".join(aplatir(v, profondeur + 1)
+                          for _, v in paires_triees(valeur))
+    return str(valeur)
+
+
+def construire_rapport(jeu, deja=None):
     """Rapport texte au même format que le bouton « Copier pour partager »
-    du jeu — les outils d'ingestion le lisent donc tel quel."""
+    du jeu — les outils d'ingestion le lisent donc tel quel.
+
+    `deja` = empreintes des entrées DÉJÀ envoyées, qu'on ne renvoie pas.
+    Sans cette mémoire, l'addon gardant ses notes, le rapport repartait
+    entier à chaque envoi et le compteur ne descendait jamais — le joueur
+    croyait à juste titre que son envoi n'avait servi à rien.
+
+    Rend (texte, nombre d'entrées NEUVES, empreintes de ces entrées).
+    """
+    deja = deja or set()
+    neuves = []
+
+    def neuve(bloc):
+        """Vrai si l'entrée n'est jamais partie (et on la note au passage)."""
+        signature = empreinte(bloc)
+        if signature in deja or signature in neuves:
+            return False
+        neuves.append(signature)
+        return True
+
     version = version_installee(jeu) or "?"
     blocs = ["Signalement Ascension FR — via le Compagnon",
              "AscensionFR " + version, ""]
@@ -433,10 +507,12 @@ def construire_rapport(jeu):
         sig = saved["Signalements"]
         if est_table(sig):
             lignes = []
-            for _, s in sig.items():
+            for _, s in paires_triees(sig):
                 if est_table(s):
-                    s = " | ".join(str(x) for _, x in s.items())
-                lignes.append("- " + str(s))
+                    s = " | ".join(aplatir(x) for _, x in paires_triees(s))
+                ligne = "- " + str(s)
+                if neuve(ligne):
+                    lignes.append(ligne)
             if lignes:
                 blocs.append("--- Signalements (%d) ---" % len(lignes))
                 blocs += lignes
@@ -444,42 +520,46 @@ def construire_rapport(jeu):
         # 2) Échecs d'alignement (le cœur : IDs + texte anglais affiché).
         echecs = saved["EchecsAlignement"]
         if est_table(echecs):
-            for genre, table in echecs.items():
+            for genre, table in paires_triees(echecs):
                 if not est_table(table):
                     continue
-                entrees = list(table.items())
-                if not entrees:
-                    continue
-                blocs.append("--- Échecs d'alignement %s (%d) ---"
-                             % (genre, len(entrees)))
-                for id_, texte in entrees:
-                    blocs.append("%s :" % id_)
+                entrees = []
+                for id_, texte in paires_triees(table):
+                    corps = ["%s :" % id_]
                     if est_table(texte):
-                        for _, ligne in texte.items():
-                            blocs.append("  " + str(ligne))
+                        for _, ligne in paires_triees(texte):
+                            corps.append("  " + aplatir(ligne))
                     else:
-                        blocs.append("  " + str(texte))
-                total += len(entrees)
+                        corps.append("  " + aplatir(texte))
+                    bloc = "\n".join(corps)
+                    if neuve(bloc):
+                        entrees.append(bloc)
+                if entrees:
+                    blocs.append("--- Échecs d'alignement %s (%d) ---"
+                                 % (genre, len(entrees)))
+                    blocs += entrees
+                    total += len(entrees)
         # 3) Récolte : textes rencontrés sans traduction.
         recolte = saved["Recolte"]
         if est_table(recolte):
             lignes = []
-            for categorie, table in recolte.items():
+            for categorie, table in paires_triees(recolte):
                 if est_table(table):
-                    for cle, valeur in table.items():
+                    for cle, valeur in paires_triees(table):
                         ligne = "[%s] %s" % (categorie, cle)
                         # Le texte anglais récolté (quêtes surtout) part avec
                         # la ligne — un numéro seul est intraduisible.
                         if isinstance(valeur, str) and valeur:
                             ligne += " ==> " + valeur[:900]
-                        lignes.append(ligne)
+                        if neuve(ligne):
+                            lignes.append(ligne)
             if lignes:
                 blocs.append("--- Récolte : rencontrés sans traduction (%d) ---"
                              % len(lignes))
                 blocs += lignes
                 total += len(lignes)
         blocs.append("")
-    return "\n".join(blocs), total
+    return "\n".join(blocs), total, neuves
 
 
 # --------------------------------------------------------------------------- #
@@ -492,8 +572,8 @@ class Compagnon(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Ascension FR — Compagnon")
-        self.geometry("540x680")
-        self.minsize(500, 640)
+        self.geometry("540x820")
+        self.minsize(500, 720)
         self.configure(fg_color=FOND)
         try:
             self.iconbitmap(ressource("logo.ico"))
@@ -512,6 +592,11 @@ class Compagnon(ctk.CTk):
         self._rafraichir_jeu()
         self.after(300, self.verifier_version)
         self.after(600, self.rafraichir_stats)
+        # Beaucoup de joueurs laissent le Compagnon ouvert derrière le jeu.
+        # En revenant dessus après un /reload, le compteur doit refléter ce
+        # qu'ils viennent de croiser, pas l'état d'il y a deux heures.
+        self.dernier_coup_oeil = 0
+        self.bind("<FocusIn>", self._au_retour)
 
     # --- mise en page (« launcher moderne » : sombre, plat, accent doré) --- #
     def _cadre(self, entete):
@@ -533,6 +618,44 @@ class Compagnon(ctk.CTk):
                        command=commande)
         options.update(kw)
         return ctk.CTkButton(parent, text=texte, **options)
+
+    def _image(self, nom, taille):
+        """Charge une icône des assets. Rend None si elle manque : le
+        Compagnon doit démarrer même sans ses images (chacun peut le
+        reconstruire depuis la source)."""
+        try:
+            from PIL import Image
+            fichier = Image.open(ressource(nom))
+            return ctk.CTkImage(light_image=fichier, dark_image=fichier,
+                                size=(taille, taille))
+        except Exception:
+            return None
+
+    def _icone_lien(self, parent, base, url, libelle, taille=20):
+        """Petite icône cliquable : atténuée au repos, pleine couleur au
+        survol. Sans image disponible, on retombe sur un lien texte."""
+        pale = self._image(base + "_pale.png", taille)
+        vive = self._image(base + ".png", taille)
+        if not (pale and vive):
+            return self._lien(parent, libelle, url)
+        lien = ctk.CTkLabel(parent, text="", image=pale, cursor="hand2")
+        lien.bind("<Button-1>", lambda _: webbrowser.open(url))
+        lien.bind("<Enter>", lambda _: lien.configure(image=vive))
+        lien.bind("<Leave>", lambda _: lien.configure(image=pale))
+        return lien
+
+    def _lien(self, parent, texte, url, **kw):
+        """Lien texte discret : ni cadre ni fond, il ne s'éclaire qu'au survol.
+        Pour ce qui doit être accessible sans réclamer l'attention."""
+        options = dict(font=ctk.CTkFont(size=11), text_color="#5a6068",
+                       cursor="hand2")
+        options.update(kw)
+        repos = options["text_color"]
+        lien = ctk.CTkLabel(parent, text=texte, **options)
+        lien.bind("<Button-1>", lambda _: webbrowser.open(url))
+        lien.bind("<Enter>", lambda _: lien.configure(text_color=ACCENT))
+        lien.bind("<Leave>", lambda _: lien.configure(text_color=repos))
+        return lien
 
     def _bouton_discret(self, parent, texte, commande, **kw):
         """Bouton secondaire : contour seul, fond transparent."""
@@ -625,11 +748,41 @@ class Compagnon(ctk.CTk):
                                                 self.copier_rapport)
         self.btn_rapport.pack(side="left", expand=True, fill="x",
                               padx=(0, 6))
-        ctk.CTkButton(ligne, text="💬 Discord", height=36, width=110,
-                      corner_radius=6, fg_color="#5865F2",
-                      hover_color="#4752C4",
+        # Discord : le logo seul, dans un carré au même trait que le bouton
+        # voisin. Le pavé bleu vif attirait l'œil plus que l'action
+        # principale — l'icône dit la même chose sans crier.
+        logo = self._image("discord.png", 22)
+        ctk.CTkButton(ligne, text="" if logo else "Discord", image=logo,
+                      height=36, width=48 if logo else 110, corner_radius=6,
+                      fg_color="transparent", hover_color=FANTOME_SURVOL,
+                      border_width=1, border_color=FANTOME_BORD,
+                      text_color=TEXTE,
                       command=lambda: webbrowser.open(DISCORD)
                       ).pack(side="left")
+
+        # Bloc soutien — placé APRÈS « Contribuer » : on demande d'abord de
+        # l'aide pour la traduction, l'argent ensuite, et jamais en doré (ce
+        # ton est réservé à l'action principale).
+        bloc4 = self._cadre("Soutenir le projet")
+        ctk.CTkLabel(bloc4, justify="left", text_color=DISCRET,
+                     text="La traduction est gratuite, et le restera.\n"
+                          "Si elle te rend service, tu peux offrir un café\n"
+                          "à celui qui la fait vivre. 💜"
+                     ).pack(anchor="w", padx=16)
+        self._bouton_discret(
+            bloc4, "☕  Offrir un café au créateur",
+            lambda: webbrowser.open(SOUTIEN),
+            border_color=ACCENT, text_color=ACCENT
+        ).pack(fill="x", padx=16, pady=(8, 6))
+
+        # Réseaux : une simple ligne de texte, en tout petit. Volontairement
+        # sans bouton ni logo — ce n'est pas ce que le joueur vient chercher.
+        reseaux = ctk.CTkFrame(bloc4, fg_color="transparent")
+        reseaux.pack(anchor="e", padx=16, pady=(4, 12))
+        self._icone_lien(reseaux, "twitch", TWITCH, "Twitch"
+                         ).pack(side="left", padx=(0, 12))
+        self._icone_lien(reseaux, "youtube", YOUTUBE, "YouTube"
+                         ).pack(side="left")
 
         # Barre d'état + pied de page
         self.lbl_etat = ctk.CTkLabel(self, text="", text_color=DISCRET)
@@ -677,6 +830,18 @@ class Compagnon(ctk.CTk):
         self.etat("Ce dossier ne contient pas « Interface ».", ORANGE)
 
     # --- statistiques ------------------------------------------------------ #
+    def _au_retour(self, _evenement=None):
+        """Fenêtre revenue au premier plan : on recompte, sans excès.
+
+        Lire la sauvegarde coûte un vrai temps (fichier Lua volumineux) et
+        l'événement se déclenche souvent : une relecture toutes les 10 s au
+        plus suffit largement."""
+        maintenant = time.time()
+        if maintenant - self.dernier_coup_oeil < 10:
+            return
+        self.dernier_coup_oeil = maintenant
+        self.rafraichir_stats()
+
     def rafraichir_stats(self):
         if not jeu_valide(self.jeu):
             return
@@ -892,13 +1057,14 @@ class Compagnon(ctk.CTk):
             self.etat("Choisis d'abord le dossier du jeu.", ORANGE)
             return
         try:
-            rapport, total = construire_rapport(self.jeu)
+            rapport, total, empreintes = construire_rapport(self.jeu,
+                                                            deja_envoyees())
         except Exception as e:
             self.etat("Lecture impossible : %s" % e, ROUGE)
             return
         if total == 0:
-            self.etat("Rien à signaler pour l'instant — joue, l'addon note "
-                      "tout seul ! (Ou fais /reload en jeu.)", ORANGE)
+            self.etat("Tout ce que tu avais est déjà parti — merci ! Rejoue "
+                      "un peu, l'addon notera du nouveau. 💜", VERT)
             return
         self.btn_envoyer.configure(state="disabled", text="Envoi…")
         self.etat("Envoi du rapport…")
@@ -909,17 +1075,31 @@ class Compagnon(ctk.CTk):
                 # première des traducteurs. Jamais bloquant (None si souci).
                 caches, _ = extraire_caches(self.jeu)
                 envoyer_rapport_discord(rapport, caches)
-                self.after(0, self._envoi_reussi)
+                self.after(0, lambda: self._envoi_reussi(total, empreintes))
             except Exception:
                 self.after(0, lambda: self._envoi_rate(rapport))
         threading.Thread(target=travail, daemon=True).start()
 
-    def _envoi_reussi(self):
+    def _rearmer_envoi(self):
+        """Rend le bouton d'envoi utilisable après la confirmation.
+
+        Sans cela il restait bloqué jusqu'à la fermeture de l'application : un
+        joueur qui rejouait une heure devait fermer et rouvrir le Compagnon
+        pour renvoyer son rapport. Personne ne devine ça."""
+        if hasattr(self, "btn_envoyer"):
+            self.btn_envoyer.configure(state="normal",
+                                       text="📨  Envoyer mon rapport")
+
+    def _envoi_reussi(self, total=0, empreintes=()):
         self.btn_envoyer.configure(text="✓  Rapport envoyé — merci !")
-        self.etat("Rapport envoyé ! Chaque rapport fait avancer la "
-                  "traduction. 💜", VERT)
+        # 5 s : le temps de lire la confirmation, puis le bouton se réarme.
+        self.after(5000, self._rearmer_envoi)
+        self.etat("Rapport envoyé (%d entrée(s)) ! Chaque rapport fait "
+                  "avancer la traduction. 💜" % total, VERT)
         self.cfg["dernier_envoi"] = time.strftime("%d/%m/%Y")
-        sauver_config(self.cfg)
+        # Mémorisé : ces entrées ne repartiront plus, et le compteur retombe.
+        noter_envoyees(self.cfg, empreintes)
+        self.rafraichir_stats()
 
     def _envoi_rate(self, rapport):
         self.btn_envoyer.configure(state="normal",
@@ -934,7 +1114,10 @@ class Compagnon(ctk.CTk):
             self.etat("Choisis d'abord le dossier du jeu.", ORANGE)
             return
         try:
-            rapport, total = construire_rapport(self.jeu)
+            # Copie : on donne TOUT (même le déjà-envoyé). Le joueur peut
+            # vouloir montrer son rapport complet, et rien ne prouve qu'il
+            # collera — on ne marque donc rien comme parti.
+            rapport, total, _ = construire_rapport(self.jeu)
         except Exception as e:
             self.etat("Lecture impossible : %s" % e, ROUGE)
             return
