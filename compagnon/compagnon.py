@@ -249,6 +249,9 @@ def lancer_remplacement(nouveau, cible):
         "del \"%s\" 2>nul\r\n"
         "if exist \"%s\" goto attente\r\n"
         "move /y \"%s\" \"%s\" >nul\r\n"
+        # Respiration : l'antivirus inspecte l'exe tout juste écrit ; relancer
+        # dans la même seconde peut échouer (« Failed to load Python DLL »).
+        "timeout /t 4 /nobreak >nul\r\n"
         "start \"\" \"%s\"\r\n"
         "del \"%%~f0\"\r\n" % (cible, cible, nouveau, cible, cible))
     # mbcs : l'encodage des .bat sous Windows (chemins accentués compris).
