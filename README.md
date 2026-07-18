@@ -15,7 +15,33 @@
 
 ---
 
-## 📥 Installation (2 minutes, que des fichiers)
+## 📥 Installation — deux façons, au choix
+
+| | 🖥️ **Avec le Compagnon** | 📁 **À la main** |
+|---|---|---|
+| Pour qui | ceux qui veulent le plus simple | ceux qui préfèrent ne rien exécuter |
+| Comment | double-clic, un bouton | extraire un zip |
+| Mises à jour | **en un clic** (et l'appli se met à jour toute seule) | re-télécharger le zip |
+| Signaler un souci | **un bouton, ça part tout seul** | copier-coller sur le Discord |
+
+### 🖥️ Avec le Compagnon (le plus simple)
+
+1. **[Télécharge `AscensionFR_Compagnon.exe`](../../releases/latest)** et
+   pose-le où tu veux (bureau, dossier du jeu…).
+2. Double-clique dessus : il **trouve ton jeu tout seul**.
+3. Clique sur **« Installer la traduction »**. C'est fini. 🎉
+
+> 🛡️ Au premier lancement, Windows peut afficher un écran bleu « Windows a
+> protégé votre ordinateur » : c'est le lot de tout programme non signé d'un
+> petit projet. Clique **« Informations complémentaires » → « Exécuter quand
+> même »**. Le [code source est public](compagnon/) si tu veux vérifier ce
+> qu'il fait.
+>
+> 🔐 Si ton jeu est dans `C:\Program Files`, Windows protège ce dossier :
+> le Compagnon te proposera un bouton **« Relancer en administrateur »**,
+> accepte et tout se déroulera normalement.
+
+### 📁 À la main (2 minutes, que des fichiers)
 
 C'est une traduction : rien que des fichiers d'addon (`.lua` / `.xml`), du
 texte que tu peux ouvrir et lire. **Aucun programme à installer, aucun `.exe`.**
@@ -43,22 +69,24 @@ texte que tu peux ouvrir et lire. **Aucun programme à installer, aucun `.exe`.*
 > par-dessus (dis « oui » pour remplacer les fichiers), puis `/reload` en jeu
 > ou reconnecte-toi. Tes réglages sont conservés.
 
-## 🖥️ Le Compagnon (optionnel)
+## 🖥️ Ce que fait le Compagnon
 
-Pour ceux qui préfèrent le confort : une petite application qui **installe et
-met à jour la traduction en un clic**, et copie ton **rapport de
-contribution** pour le Discord.
+Une petite application **optionnelle** — l'installation manuelle marche
+toujours, le Compagnon est un plus, jamais une obligation.
 
-- **[Télécharger `AscensionFR_Compagnon.exe`](../../releases/latest)** —
-  pose-le où tu veux, double-clique, c'est tout.
-- **Transparence** : [code source ouvert](compagnon/) (un seul fichier Python,
-  lisible). Aucune donnée envoyée : le rapport est copié dans **ton**
-  presse-papiers, c'est toi qui le colles.
-- Au premier lancement, Windows SmartScreen peut demander confirmation
-  (programme non signé d'un petit projet — c'est attendu) : « Informations
-  complémentaires » → « Exécuter quand même ».
-- L'installation **manuelle** ci-dessus reste bien sûr toujours possible :
-  le Compagnon est un plus, jamais une obligation.
+- **Installe et met à jour la traduction** en un clic, avec la progression
+  affichée.
+- **Se met à jour lui-même** : quand une nouvelle version sort, un clic et il
+  se remplace puis redémarre tout seul.
+- **Envoie ton rapport de contribution** en un clic — plus besoin de copier
+  quoi que ce soit (le bouton « copier » reste là si tu préfères).
+- **Affiche l'état de ta traduction** : nombre de textes français actifs sur
+  ton jeu, et ce que ton rapport contient.
+
+> 🔍 **Transparence** : [code source ouvert](compagnon/) — un seul fichier
+> Python lisible, avec la recette exacte pour reconstruire l'`.exe` toi-même.
+> Le rapport ne contient **que des textes du jeu** et des numéros de
+> sorts/objets : jamais d'information personnelle.
 
 ## ✅ Ce qui est traduit
 
@@ -85,18 +113,22 @@ française, à partir de bases de données livrées avec l'addon.
   le reste continue de fonctionner. En jeu, tape `/afr` pour le panneau de
   la traduction.
 
-## 🤝 Aider la traduction
+## 🤝 Aider la traduction (10 secondes)
 
-Le jeu est immense — impossible de tout traduire seul. Alors l'addon **note
-tout seul** les textes encore en anglais que tu croises, et tu peux les
-partager en 30 secondes :
+Le jeu est immense — impossible de tout traduire seul. Alors **l'addon note
+tout seul** les textes encore en anglais que tu croises pendant que tu joues.
+Il ne reste qu'à les envoyer :
 
-1. En jeu, tape **`/afr`** → onglet **« Aider la traduction »**.
-2. Clique sur **« Copier mon rapport »**.
-3. Colle-le sur le [Discord](https://discord.gg/kFJGDJbeay).
+**Avec le Compagnon** — déconnecte-toi (ou tape `/reload`), ouvre le
+Compagnon, clique sur **« Envoyer mon rapport »**. C'est tout. ✅
 
-*(Système en test, mais déjà en place.)* Chaque classe et chaque zone que tu
-joues font avancer la traduction pour **tout le monde**. 💜
+**Sans le Compagnon** — en jeu, `/afr` → onglet **« Aider la traduction »** →
+**« Copier mon rapport »** → colle-le sur le
+[Discord](https://discord.gg/kFJGDJbeay).
+
+Chaque classe et chaque zone que tu joues font avancer la traduction pour
+**tout le monde**. Les rapports reçus sont traduits et intégrés à la version
+suivante. 💜
 
 ## 💡 Pourquoi ce projet
 
@@ -118,9 +150,24 @@ une nouvelle version est publiée ici.
 **Comment désinstaller ?** Supprime les dossiers `AscensionFR` et
 `AscensionFR_Repliques` dans `Interface\AddOns`, et `PTRXML` dans `Interface`.
 
-**Un texte est faux ou en anglais ?** Signale-le sur le
-[Discord](https://discord.gg/kFJGDJbeay) ou en [issue](../../issues) —
-chaque retour améliore la suite.
+**Un texte est faux ou en anglais ?** Envoie ton rapport (voir « Aider la
+traduction » plus haut) ou ouvre une [issue](../../issues) — chaque retour
+améliore la suite.
+
+**Le Compagnon est-il obligatoire ?** Non. L'installation manuelle marche
+exactement pareil, et rien n'est jamais bloqué derrière l'application.
+
+**Le Compagnon envoie-t-il mes données ?** Non. Il ne contacte que GitHub
+(pour les mises à jour) et, si tu cliques sur « Envoyer mon rapport », le
+salon Discord du projet — avec **uniquement** des textes du jeu et des
+numéros de sorts/objets. Rien d'automatique, rien de personnel : le
+[code source](compagnon/) le montre.
+
+**Windows dit que le Compagnon est dangereux ?** C'est SmartScreen : il alerte
+sur tout programme non signé d'un petit projet (un certificat coûte plusieurs
+centaines d'euros par an). « Informations complémentaires » → « Exécuter quand
+même ». Si tu préfères, l'installation manuelle ne demande **aucun**
+programme.
 
 ## 💛 Soutenir le projet
 
