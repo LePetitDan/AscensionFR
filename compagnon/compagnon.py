@@ -18,6 +18,7 @@ part : le rapport est copié dans TON presse-papiers, c'est toi qui le colles.
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import threading
@@ -34,8 +35,16 @@ PAGE_RELEASES = "https://github.com/" + DEPOT + "/releases"
 # une release plus récente sort, le Compagnon propose son propre remplacement
 # (lien vers la page de téléchargement) en plus de mettre à jour l'addon.
 VERSION_COMPAGNON = "1.4"
+
+# Salon des rapports : URL du webhook Discord (fournie par le mainteneur).
+# VIDE -> le bouton « Envoyer » n'existe pas, seul « Copier » reste (aucun
+# envoi réseau). Quand il est renseigné, « Envoyer » poste le rapport en pièce
+# jointe .txt dans le salon — le rapport ne contient QUE des textes du jeu et
+# des numéros de sorts/objets, jamais d'information personnelle.
+WEBHOOK_RAPPORTS = ""  # renseignée dans l'exe officiel au moment de sa construction
 DISCORD = "https://discord.gg/kFJGDJbeay"
 ZIP_ATTENDU = "AscensionFR_manuel.zip"
+EXE_ATTENDU = "AscensionFR_Compagnon.exe"
 UA = {"User-Agent": "AscensionFR-Compagnon"}
 
 # Palette « launcher moderne » : sombre, plat, une seule touche d'or — le
@@ -148,16 +157,18 @@ def en_tuple(version):
 
 
 def derniere_release():
-    """(version, url_du_zip) de la dernière release GitHub."""
+    """(version, url_du_zip, url_de_l_exe) de la dernière release GitHub."""
     req = urllib.request.Request(API_RELEASE, headers=UA)
     with urllib.request.urlopen(req, timeout=20) as r:
         infos = json.load(r)
     version = (infos.get("tag_name") or "").lstrip("vV")
-    url = None
+    url_zip, url_exe = None, None
     for asset in infos.get("assets", []):
         if asset.get("name") == ZIP_ATTENDU:
-            url = asset.get("browser_download_url")
-    return version, url
+            url_zip = asset.get("browser_download_url")
+        elif asset.get("name") == EXE_ATTENDU:
+            url_exe = asset.get("browser_download_url")
+    return version, url_zip, url_exe
 
 
 def mise_a_jour_dispo(installee, derniere):
@@ -173,17 +184,23 @@ def mise_a_jour_dispo(installee, derniere):
     return vd > vi
 
 
-def telecharger_zip(url):
-    """Télécharge le zip de release dans un fichier temporaire ; rend le chemin."""
+def telecharger_fichier(url, progres=None, suffixe=".zip"):
+    """Télécharge un fichier de release dans un fichier temporaire ; rend le
+    chemin. progres(fait, total) est appelé au fil de l'eau."""
     req = urllib.request.Request(url, headers=UA)
-    fd, chemin = tempfile.mkstemp(suffix=".zip", prefix="AscensionFR_")
-    with urllib.request.urlopen(req, timeout=120) as r, \
+    fd, chemin = tempfile.mkstemp(suffix=suffixe, prefix="AscensionFR_")
+    with urllib.request.urlopen(req, timeout=60) as r, \
             os.fdopen(fd, "wb") as f:
+        total = int(r.headers.get("Content-Length") or 0)
+        fait = 0
         while True:
             bloc = r.read(65536)
             if not bloc:
                 break
             f.write(bloc)
+            fait += len(bloc)
+            if progres:
+                progres(fait, total)
     return chemin
 
 
@@ -192,6 +209,29 @@ def installer_zip(chemin_zip, jeu):
     with zipfile.ZipFile(chemin_zip) as z:
         z.extractall(jeu)
     os.remove(chemin_zip)
+
+
+def lancer_remplacement(nouveau, cible):
+    """Auto-mise à jour du Compagnon : un programme ne peut pas s'écraser
+    lui-même pendant qu'il tourne. On confie donc l'échange à un minuscule
+    script relais qui attend la fermeture de l'appli (tant que l'exe est
+    verrouillé, « del » échoue), remplace l'ancien exe par le nouveau,
+    relance, puis s'efface lui-même."""
+    fd, bat = tempfile.mkstemp(suffix=".bat", prefix="AscensionFR_maj_")
+    contenu = (
+        "@echo off\r\n"
+        ":attente\r\n"
+        "timeout /t 1 /nobreak >nul\r\n"
+        "del \"%s\" 2>nul\r\n"
+        "if exist \"%s\" goto attente\r\n"
+        "move /y \"%s\" \"%s\" >nul\r\n"
+        "start \"\" \"%s\"\r\n"
+        "del \"%%~f0\"\r\n" % (cible, cible, nouveau, cible, cible))
+    # mbcs : l'encodage des .bat sous Windows (chemins accentués compris).
+    with os.fdopen(fd, "w", encoding="mbcs", errors="replace") as f:
+        f.write(contenu)
+    subprocess.Popen(["cmd", "/c", bat],
+                     creationflags=0x08000000)      # CREATE_NO_WINDOW
 
 
 # --------------------------------------------------------------------------- #
@@ -223,6 +263,32 @@ def lire_sauvegarde(chemin):
 
 def est_table(v):
     return hasattr(v, "items")
+
+
+def envoyer_rapport_discord(rapport):
+    """Poste le rapport en pièce jointe .txt sur le salon des rapports (via le
+    webhook). Lève en cas d'échec — l'appelant se replie alors sur la copie."""
+    import uuid
+    frontiere = "----AscensionFR" + uuid.uuid4().hex
+    nom = "rapport_%s.txt" % uuid.uuid4().hex[:8]
+    meta = json.dumps({"username": "Compagnon Ascension FR",
+                       "content": "Nouveau rapport de contribution :"})
+    corps = (
+        "--%s\r\n"
+        "Content-Disposition: form-data; name=\"payload_json\"\r\n"
+        "Content-Type: application/json\r\n\r\n%s\r\n"
+        "--%s\r\n"
+        "Content-Disposition: form-data; name=\"files[0]\"; "
+        "filename=\"%s\"\r\n"
+        "Content-Type: text/plain; charset=utf-8\r\n\r\n%s\r\n"
+        "--%s--\r\n" % (frontiere, meta, frontiere, nom, rapport, frontiere)
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        WEBHOOK_RAPPORTS, data=corps, method="POST",
+        headers={"User-Agent": UA["User-Agent"],
+                 "Content-Type": "multipart/form-data; boundary=" + frontiere})
+    with urllib.request.urlopen(req, timeout=30):
+        pass                               # 2xx = envoyé ; sinon une exception
 
 
 def construire_rapport(jeu):
@@ -312,6 +378,7 @@ class Compagnon(ctk.CTk):
             self.jeu = chercher_jeu()
         self.derniere = None
         self.url_zip = None
+        self.url_exe = None
 
         self._construire()
         self._rafraichir_jeu()
@@ -387,23 +454,34 @@ class Compagnon(ctk.CTk):
         # on emmène le joueur sur la page de téléchargement).
         self.lbl_maj_compagnon = ctk.CTkLabel(
             bloc2, text="⬆  Le Compagnon a aussi une nouvelle version — "
-                        "clique ici pour la télécharger",
+                        "clique ici : il se met à jour et redémarre tout seul",
             text_color=ACCENT, cursor="hand2",
             font=ctk.CTkFont(size=12, underline=True))
-        self.lbl_maj_compagnon.bind(
-            "<Button-1>", lambda _: webbrowser.open(PAGE_RELEASES))
+        self.lbl_maj_compagnon.bind("<Button-1>",
+                                    lambda _: self.maj_compagnon())
 
         # Bloc contribution
         bloc3 = self._cadre("Contribuer")
-        ctk.CTkLabel(
-            bloc3, justify="left", text_color=DISCRET,
-            text=("En jouant, l'addon note tout seul les textes encore\n"
-                  "en anglais. Copie ton rapport et colle-le sur le Discord.\n"
-                  "(Déconnecte-toi ou /reload d'abord : le jeu n'écrit\n"
-                  "le fichier qu'à ce moment-là.)")
-        ).pack(anchor="w", padx=16)
+        if WEBHOOK_RAPPORTS:
+            aide = ("En jouant, l'addon note tout seul les textes encore\n"
+                    "en anglais. Un clic, et ton rapport part aider la\n"
+                    "traduction. (Déconnecte-toi ou /reload d'abord : le jeu\n"
+                    "n'écrit le fichier qu'à ce moment-là.)")
+        else:
+            aide = ("En jouant, l'addon note tout seul les textes encore\n"
+                    "en anglais. Copie ton rapport et colle-le sur le Discord.\n"
+                    "(Déconnecte-toi ou /reload d'abord : le jeu n'écrit\n"
+                    "le fichier qu'à ce moment-là.)")
+        ctk.CTkLabel(bloc3, justify="left", text_color=DISCRET, text=aide
+                     ).pack(anchor="w", padx=16)
+        if WEBHOOK_RAPPORTS:
+            self.btn_envoyer = self._bouton_principal(
+                bloc3, "📨  Envoyer mon rapport", self.envoyer_rapport,
+                height=38)
+            self.btn_envoyer.pack(fill="x", padx=16, pady=(8, 4))
         ligne = ctk.CTkFrame(bloc3, fg_color="transparent")
-        ligne.pack(fill="x", padx=16, pady=(8, 12))
+        ligne.pack(fill="x", padx=16,
+                   pady=((0, 12) if WEBHOOK_RAPPORTS else (8, 12)))
         self.btn_rapport = self._bouton_discret(ligne,
                                                 "📋 Copier mon rapport",
                                                 self.copier_rapport)
@@ -462,14 +540,16 @@ class Compagnon(ctk.CTk):
     def verifier_version(self):
         def travail():
             try:
-                derniere, url = derniere_release()
+                derniere, url, url_exe = derniere_release()
             except Exception:
-                derniere, url = None, None
-            self.after(0, lambda: self._montrer_version(derniere, url))
+                derniere, url, url_exe = None, None, None
+            self.after(0, lambda: self._montrer_version(derniere, url,
+                                                        url_exe))
         threading.Thread(target=travail, daemon=True).start()
 
-    def _montrer_version(self, derniere, url):
+    def _montrer_version(self, derniere, url, url_exe):
         self.derniere, self.url_zip = derniere, url
+        self.url_exe = url_exe
         # Le Compagnon lui-même a-t-il une version plus récente ?
         if derniere and en_tuple(derniere) > en_tuple(VERSION_COMPAGNON):
             self.lbl_maj_compagnon.pack(anchor="w", padx=16, pady=(0, 10))
@@ -521,15 +601,26 @@ class Compagnon(ctk.CTk):
         self.btn_maj.configure(state="disabled", text="Téléchargement…")
         self.etat("Téléchargement de la version " + (self.derniere or ""))
 
+        def montrer_progres(fait, total):
+            if total > 0:
+                texte = "Téléchargement… %d %%" % (fait * 100 // total)
+            else:
+                texte = "Téléchargement… %.1f Mo" % (fait / 1048576.0)
+            self.after(0, lambda t=texte: self.btn_maj.configure(text=t))
+
         def travail():
             try:
-                chemin = telecharger_zip(self.url_zip)
+                chemin = telecharger_fichier(self.url_zip, montrer_progres)
                 self.after(0, lambda: self.btn_maj.configure(
                     text="Installation…"))
                 installer_zip(chemin, self.jeu)
                 self.after(0, self._maj_finie)
             except Exception as e:
-                self.after(0, lambda: self._maj_ratee(e))
+                # err=e : la variable d'un « except » disparaît à la fin du
+                # bloc ; une lambda qui la lit plus tard planterait en silence
+                # et laisserait le bouton figé sur « Téléchargement… » (bug
+                # signalé par Trey le jour du lancement).
+                self.after(0, lambda err=e: self._maj_ratee(err))
         threading.Thread(target=travail, daemon=True).start()
 
     def _maj_finie(self):
@@ -541,7 +632,85 @@ class Compagnon(ctk.CTk):
         self.btn_maj.configure(state="normal", text="Réessayer")
         self.etat("Échec : %s" % e, ROUGE)
 
+    # --- auto-mise à jour du Compagnon lui-même ---------------------------- #
+    def maj_compagnon(self):
+        if not getattr(sys, "frozen", False) or not self.url_exe:
+            # En mode script (développement) ou sans exe en release :
+            # on emmène simplement sur la page de téléchargement.
+            webbrowser.open(PAGE_RELEASES)
+            return
+        self.lbl_maj_compagnon.unbind("<Button-1>")
+        self.lbl_maj_compagnon.configure(cursor="watch")
+
+        def progres(fait, total):
+            if total > 0:
+                self.after(0, lambda p=fait * 100 // total:
+                           self.lbl_maj_compagnon.configure(
+                               text="⬇  Nouveau Compagnon… %d %%" % p))
+
+        def travail():
+            try:
+                nouveau = telecharger_fichier(self.url_exe, progres, ".exe")
+                self.after(0, lambda n=nouveau: self._redemarrer_avec(n))
+            except Exception as e:
+                self.after(0, lambda err=e: self._maj_compagnon_ratee(err))
+        threading.Thread(target=travail, daemon=True).start()
+
+    def _redemarrer_avec(self, nouveau):
+        self.etat("Nouvelle version téléchargée — redémarrage…", VERT)
+        lancer_remplacement(nouveau, sys.executable)
+        # On laisse une demi-seconde à l'affichage, puis on se ferme : le
+        # relais attend justement cette fermeture pour faire l'échange.
+        self.after(500, self.destroy)
+
+    def _maj_compagnon_ratee(self, err):
+        self.lbl_maj_compagnon.configure(
+            text="⬆  Mise à jour du Compagnon impossible — clique ici pour "
+                 "la page de téléchargement", cursor="hand2")
+        self.lbl_maj_compagnon.bind(
+            "<Button-1>", lambda _: webbrowser.open(PAGE_RELEASES))
+        self.etat("Échec : %s" % err, ROUGE)
+
     # --- rapport ----------------------------------------------------------- #
+    def envoyer_rapport(self):
+        """Envoie le rapport sur le salon Discord des rapports (webhook). En
+        cas d'échec réseau, repli automatique : copie dans le presse-papiers."""
+        if not jeu_valide(self.jeu):
+            self.etat("Choisis d'abord le dossier du jeu.", ORANGE)
+            return
+        try:
+            rapport, total = construire_rapport(self.jeu)
+        except Exception as e:
+            self.etat("Lecture impossible : %s" % e, ROUGE)
+            return
+        if total == 0:
+            self.etat("Rien à signaler pour l'instant — joue, l'addon note "
+                      "tout seul ! (Ou fais /reload en jeu.)", ORANGE)
+            return
+        self.btn_envoyer.configure(state="disabled", text="Envoi…")
+        self.etat("Envoi du rapport…")
+
+        def travail():
+            try:
+                envoyer_rapport_discord(rapport)
+                self.after(0, self._envoi_reussi)
+            except Exception:
+                self.after(0, lambda: self._envoi_rate(rapport))
+        threading.Thread(target=travail, daemon=True).start()
+
+    def _envoi_reussi(self):
+        self.btn_envoyer.configure(text="✓  Rapport envoyé — merci !")
+        self.etat("Rapport envoyé ! Chaque rapport fait avancer la "
+                  "traduction. 💜", VERT)
+
+    def _envoi_rate(self, rapport):
+        self.btn_envoyer.configure(state="normal",
+                                   text="📨  Envoyer mon rapport")
+        self.clipboard_clear()
+        self.clipboard_append(rapport)
+        self.etat("Envoi impossible (hors ligne ?) — rapport COPIÉ à la "
+                  "place : colle-le sur le Discord.", ORANGE)
+
     def copier_rapport(self):
         if not jeu_valide(self.jeu):
             self.etat("Choisis d'abord le dossier du jeu.", ORANGE)
