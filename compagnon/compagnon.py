@@ -8,16 +8,21 @@ de Project Ascension (https://github.com/LePetitDan/AscensionFR) :
   1. vérifie si une nouvelle version de la traduction existe et l'installe
      en un clic (téléchargée depuis les releases GitHub officielles) ;
   2. prépare ton rapport de contribution (textes rencontrés en anglais,
-     notés par l'addon dans ta sauvegarde) et le copie pour le Discord.
+     notés par l'addon dans ta sauvegarde) et l'envoie aider la traduction —
+     accompagné des textes anglais que ton jeu garde en cache (quêtes, PNJ,
+     objets croisés en jouant), la matière première des traducteurs.
 
 TRANSPARENCE : ce fichier est TOUT le programme. Il ne lit que le dossier du
 jeu, n'écrit que les fichiers de l'addon, et ne contacte que api.github.com /
-github.com (téléchargement des versions). Aucune donnée n'est envoyée nulle
-part : le rapport est copié dans TON presse-papiers, c'est toi qui le colles.
+github.com (téléchargement des versions) et le salon Discord du projet (envoi
+du rapport, uniquement quand TU cliques). Tout ce qui part est du texte DU
+JEU — jamais de pseudo, de conversation ni de fichier personnel.
 """
+import gzip
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -29,20 +34,34 @@ import zipfile
 
 import customtkinter as ctk
 
+# parser_wdb (lecture des caches WDB du client) vit dans traduction\outils et
+# est embarqué tel quel dans l'exe (voir AscensionFR_Compagnon.spec). En
+# développement, on va le chercher dans le dépôt. Sans lui, le rapport part
+# simplement sans la pièce jointe des caches.
+try:
+    import parser_wdb
+except ImportError:
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    "..", "outils"))
+    try:
+        import parser_wdb
+    except ImportError:
+        parser_wdb = None
+
 DEPOT = "LePetitDan/AscensionFR"
 API_RELEASE = "https://api.github.com/repos/" + DEPOT + "/releases/latest"
 PAGE_RELEASES = "https://github.com/" + DEPOT + "/releases"
 # Version de CETTE application (alignée sur la release qui l'embarque). Quand
 # une release plus récente sort, le Compagnon propose son propre remplacement
 # (lien vers la page de téléchargement) en plus de mettre à jour l'addon.
-VERSION_COMPAGNON = "1.4"
+VERSION_COMPAGNON = "1.5"
 
 # Salon des rapports : URL du webhook Discord (fournie par le mainteneur).
 # VIDE -> le bouton « Envoyer » n'existe pas, seul « Copier » reste (aucun
 # envoi réseau). Quand il est renseigné, « Envoyer » poste le rapport en pièce
 # jointe .txt dans le salon — le rapport ne contient QUE des textes du jeu et
 # des numéros de sorts/objets, jamais d'information personnelle.
-WEBHOOK_RAPPORTS = ""  # renseignée dans l'exe officiel au moment de sa construction
+WEBHOOK_RAPPORTS = ""    # renseigné uniquement dans l'exe distribué
 DISCORD = "https://discord.gg/kFJGDJbeay"
 ZIP_ATTENDU = "AscensionFR_manuel.zip"
 EXE_ATTENDU = "AscensionFR_Compagnon.exe"
@@ -290,29 +309,105 @@ def lire_stats(jeu):
     return total, attente
 
 
-def envoyer_rapport_discord(rapport):
-    """Poste le rapport en pièce jointe .txt sur le salon des rapports (via le
-    webhook). Lève en cas d'échec — l'appelant se replie alors sur la copie."""
+ROYAUME_CIBLE = "conquest of azeroth"    # on ne collecte QUE ce royaume
+
+
+def dossiers_caches(jeu):
+    """Les dossiers de cache du royaume Conquest of Azeroth, toutes langues de
+    client confondues : <jeu>\\Cache\\WDB\\<langue>\\<royaume>\\*.wdb."""
+    base = os.path.join(jeu, "Cache", "WDB")
+    trouves = []
+    if os.path.isdir(base):
+        for langue in sorted(os.listdir(base)):
+            d = os.path.join(base, langue)
+            if not os.path.isdir(d):
+                continue
+            for royaume in sorted(os.listdir(d)):
+                r = os.path.join(d, royaume)
+                if ROYAUME_CIBLE in royaume.lower() and os.path.isdir(r):
+                    trouves.append(r)
+    return trouves
+
+
+def extraire_caches(jeu):
+    """Extrait les textes anglais des caches du jeu (quêtes, PNJ, objets…)
+    et les compresse. Rend (octets .json.gz, nombre d'entrées) ou (None, 0) :
+    quoi qu'il arrive, le rapport part — au pire sans cette pièce jointe."""
+    if parser_wdb is None:
+        return None, 0
+    try:
+        fusion = {}
+        for dossier in dossiers_caches(jeu):
+            tmp = tempfile.mkdtemp(prefix="afr_caches_")
+            try:
+                parser_wdb.parse_dir(dossier, tmp)
+                for f in os.listdir(tmp):
+                    if not f.endswith(".json"):
+                        continue
+                    with open(os.path.join(tmp, f), encoding="utf-8") as g:
+                        fusion.setdefault(f[:-5], {}).update(json.load(g))
+            except Exception:
+                pass                       # un cache abîmé n'empêche pas le reste
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
+        total = sum(len(v) for v in fusion.values())
+        if total == 0:
+            return None, 0
+        paquet = {"format": 1, "royaume": "Conquest of Azeroth",
+                  "extraits": fusion}
+
+        def compresser():
+            return gzip.compress(json.dumps(
+                paquet, ensure_ascii=False,
+                separators=(",", ":")).encode("utf-8"))
+        gz = compresser()
+        if len(gz) > 7_500_000:            # limite Discord (~8 Mo) : on allège
+            paquet["extraits"].pop("objets", None)     # la section la plus lourde
+            total = sum(len(v) for v in paquet["extraits"].values())
+            gz = compresser()
+        if len(gz) > 7_500_000 or total == 0:
+            return None, 0
+        return gz, total
+    except Exception:
+        return None, 0
+
+
+def envoyer_rapport_discord(rapport, caches=None):
+    """Poste le rapport en pièce jointe .txt — et, si fournis, les caches en
+    .json.gz — sur le salon des rapports (via le webhook). Lève en cas
+    d'échec — l'appelant se replie alors sur la copie."""
     import uuid
     frontiere = "----AscensionFR" + uuid.uuid4().hex
-    nom = "rapport_%s.txt" % uuid.uuid4().hex[:8]
+    marque = uuid.uuid4().hex[:8]
     meta = json.dumps({"username": "Compagnon Ascension FR",
                        "content": "Nouveau rapport de contribution :"})
-    corps = (
-        "--%s\r\n"
-        "Content-Disposition: form-data; name=\"payload_json\"\r\n"
-        "Content-Type: application/json\r\n\r\n%s\r\n"
-        "--%s\r\n"
-        "Content-Disposition: form-data; name=\"files[0]\"; "
-        "filename=\"%s\"\r\n"
-        "Content-Type: text/plain; charset=utf-8\r\n\r\n%s\r\n"
-        "--%s--\r\n" % (frontiere, meta, frontiere, nom, rapport, frontiere)
-    ).encode("utf-8")
+    # Corps assemblé en OCTETS : la pièce jointe des caches est binaire.
+    morceaux = [
+        ("--%s\r\n"
+         "Content-Disposition: form-data; name=\"payload_json\"\r\n"
+         "Content-Type: application/json\r\n\r\n%s\r\n"
+         % (frontiere, meta)).encode("utf-8"),
+        ("--%s\r\n"
+         "Content-Disposition: form-data; name=\"files[0]\"; "
+         "filename=\"rapport_%s.txt\"\r\n"
+         "Content-Type: text/plain; charset=utf-8\r\n\r\n"
+         % (frontiere, marque)).encode("utf-8")
+        + rapport.encode("utf-8") + b"\r\n",
+    ]
+    if caches:
+        morceaux.append(
+            ("--%s\r\n"
+             "Content-Disposition: form-data; name=\"files[1]\"; "
+             "filename=\"caches_%s.json.gz\"\r\n"
+             "Content-Type: application/octet-stream\r\n\r\n"
+             % (frontiere, marque)).encode("utf-8")
+            + caches + b"\r\n")
+    morceaux.append(("--%s--\r\n" % frontiere).encode("utf-8"))
     req = urllib.request.Request(
-        WEBHOOK_RAPPORTS, data=corps, method="POST",
+        WEBHOOK_RAPPORTS, data=b"".join(morceaux), method="POST",
         headers={"User-Agent": UA["User-Agent"],
                  "Content-Type": "multipart/form-data; boundary=" + frontiere})
-    with urllib.request.urlopen(req, timeout=30):
+    with urllib.request.urlopen(req, timeout=60):
         pass                               # 2xx = envoyé ; sinon une exception
 
 
@@ -369,7 +464,12 @@ def construire_rapport(jeu):
             for categorie, table in recolte.items():
                 if est_table(table):
                     for cle, valeur in table.items():
-                        lignes.append("[%s] %s" % (categorie, cle))
+                        ligne = "[%s] %s" % (categorie, cle)
+                        # Le texte anglais récolté (quêtes surtout) part avec
+                        # la ligne — un numéro seul est intraduisible.
+                        if isinstance(valeur, str) and valeur:
+                            ligne += " ==> " + valeur[:900]
+                        lignes.append(ligne)
             if lignes:
                 blocs.append("--- Récolte : rencontrés sans traduction (%d) ---"
                              % len(lignes))
@@ -494,7 +594,9 @@ class Compagnon(ctk.CTk):
         if WEBHOOK_RAPPORTS:
             aide = ("En jouant, l'addon note tout seul les textes encore\n"
                     "en anglais. Un clic, et ton rapport part aider la\n"
-                    "traduction. (Déconnecte-toi ou /reload d'abord : le jeu\n"
+                    "traduction, avec les textes du jeu que tu as croisés\n"
+                    "(quêtes, PNJ, objets — jamais rien de personnel).\n"
+                    "(Déconnecte-toi ou /reload d'abord : le jeu\n"
                     "n'écrit le fichier qu'à ce moment-là.)")
         else:
             aide = ("En jouant, l'addon note tout seul les textes encore\n"
@@ -662,6 +764,15 @@ class Compagnon(ctk.CTk):
         if not jeu_valide(self.jeu):
             self.etat("Choisis d'abord le dossier du jeu.", ORANGE)
             return
+        # Garde-fou ATELIER : sur la machine du mainteneur, le jeu contient des
+        # corrections pas encore publiées — réinstaller le zip de la release
+        # les écraserait (vécu le 18/07/2026 : perte de 29 corrections,
+        # récupérées de justesse). Les joueurs ne verront jamais ce message.
+        if os.path.isdir(r"D:\WOW_Priv\traduction"):
+            self.etat("Atelier de traduction détecté : installer la release "
+                      "écraserait le travail en cours. Utilise le Collecteur "
+                      "et les outils, pas ce bouton.", ORANGE)
+            return
         if not self.url_zip:
             self.verifier_version()
             return
@@ -791,7 +902,10 @@ class Compagnon(ctk.CTk):
 
         def travail():
             try:
-                envoyer_rapport_discord(rapport)
+                # Les caches du jeu voyagent avec le rapport : c'est la matière
+                # première des traducteurs. Jamais bloquant (None si souci).
+                caches, _ = extraire_caches(self.jeu)
+                envoyer_rapport_discord(rapport, caches)
                 self.after(0, self._envoi_reussi)
             except Exception:
                 self.after(0, lambda: self._envoi_rate(rapport))
