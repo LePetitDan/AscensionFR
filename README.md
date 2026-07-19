@@ -4,7 +4,7 @@
 
 <p align="center">
   <b>La traduction française complète pour <a href="https://ascension.gg">Project Ascension</a></b><br>
-  Quêtes, objets, sorts, dialogues, interface, écran de création… le jeu enfin dans ta langue.
+  Quêtes, objets, sorts, créatures, dialogues, livres… le jeu enfin dans ta langue.
 </p>
 
 <p align="center">
