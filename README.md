@@ -57,6 +57,22 @@
 
 <p align="center"><img src="assets/vitrine/separateur.png?v=2" alt="" width="80%"></p>
 
+## 🔊 Les voix françaises (optionnel)
+
+Les doublages français d'époque — dialogues des PNJ, salutations, boss —
+existent en **pack séparé** : 14 442 fichiers audio.
+
+- **Avec le Compagnon** : clique le bouton doré **« Voix françaises »**,
+  il télécharge et installe tout, tout seul.
+- **À la main** : télécharge `AscensionFR_Voix.zip` depuis
+  [le dépôt des voix](https://github.com/LePetitDan/AscensionFR-Voix/releases/latest)
+  et extrais-le **à la racine du jeu** (le dossier `Sound` doit se
+  retrouver à côté de `Data`).
+
+Pack volumineux (~1,4 Go), hébergé à part — jamais inclus dans l'addon.
+
+<p align="center"><img src="assets/vitrine/separateur.png?v=2" alt="" width="80%"></p>
+
 ## Ce qui est traduit
 
 | | | |
