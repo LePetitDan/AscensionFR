@@ -12,7 +12,7 @@
 
 <p align="center">
   <b>La traduction française complète pour <a href="https://ascension.gg">Project Ascension</a>.</b><br>
-  <b>Plus de 340 000 textes</b> · toutes les classes, y compris les customs · installation en <b>1 clic</b>.
+  <b>Plus de 660 000 textes</b> · <b>voix françaises</b> · toutes les classes, y compris les customs · installation en <b>1 clic</b>.
 </p>
 
 <p align="center">
@@ -91,8 +91,10 @@ Jamais rien de personnel : uniquement des textes du jeu.
 <td>
 
 **Le Compagnon**, c'est la petite application qui fait tout : installation,
-mises à jour automatiques, envoi des découvertes, diagnostic en un clic.
-Optionnelle — mais adoptée. [Code source ouvert](compagnon/).
+mises à jour automatiques, envoi des découvertes, diagnostic en un clic —
+et le bouton doré qui installe les **voix françaises** (les doublages
+officiels des PNJ). Optionnelle — mais adoptée.
+[Code source ouvert](compagnon/).
 
 </td>
 </tr>
