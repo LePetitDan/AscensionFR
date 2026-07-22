@@ -71,6 +71,19 @@ SOUTIEN = "https://buymeacoffee.com/lepetitdan"
 # cherche.
 TWITCH = "https://www.twitch.tv/lepetitdan"
 YOUTUBE = "https://www.youtube.com/@LePetitDan"
+
+# Dépôt SÉPARÉ des voix françaises (2.1) : JAMAIS dans le dépôt principal —
+# si une réclamation de droits le fait retirer, l'addon et ses mises à jour
+# ne doivent pas pouvoir être touchés.
+DEPOT_VOIX = "LePetitDan/AscensionFR-Voix"
+VOIX_URL = ("https://github.com/" + DEPOT_VOIX
+            + "/releases/latest/download/AscensionFR_Voix.zip")
+# Fichier-témoin : présent dans le dossier du jeu = voix déjà installées.
+# 1.1 (22/07/2026) : le témoin est un fichier NOUVEAU de la 1.1 (les 4 748
+# voix récupérées — Sylvanas, boss...) : chez un joueur resté en 1.0, le
+# bouton redevient « à télécharger » et le zip cumulatif complète tout.
+TEMOIN_VOIX = os.path.join("Sound", "CREATURE", "SylvanasWindrunner",
+                           "Sylvanas_WoundCritical01.wav")
 ZIP_ATTENDU = "AscensionFR_manuel.zip"
 EXE_ATTENDU = "AscensionFR_Compagnon.exe"
 UA = {"User-Agent": "AscensionFR-Compagnon"}
@@ -211,7 +224,9 @@ def mise_a_jour_dispo(installee, derniere):
     vi, vd = en_tuple(installee), en_tuple(derniere)
     # Les toutes premières versions de l'addon portaient une numérotation
     # interne (2.2, 2.3) antérieure à l'alignement sur les releases (1.4+).
-    if vi >= (2, 0) and vd < (2, 0):
+    # RESSERRÉ le 20/07/2026 : l'ancienne borne « vi >= (2, 0) » aurait fait
+    # proposer un RETOUR en 1.7.5 aux joueurs de la vraie 2.0 (audit).
+    if (2, 2) <= vi < (3,) and vd < (2, 0):
         return True
     return vd > vi
 
