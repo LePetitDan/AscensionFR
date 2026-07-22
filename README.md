@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/vitrine/banniere.png" alt="Ascension FR — Le jeu en français" width="100%">
+  <img src="assets/vitrine/banniere.png?v=2" alt="Ascension FR — Le jeu en français" width="100%">
 </p>
 
 <p align="center">
@@ -23,24 +23,24 @@
   <a href="docs/FAQ.md"><b>❓ FAQ</b></a>
 </p>
 
-<p align="center"><img src="assets/vitrine/separateur.png" alt="" width="80%"></p>
+<p align="center"><img src="assets/vitrine/separateur.png?v=2" alt="" width="80%"></p>
 
 ## Installation en 3 étapes
 
 <table align="center">
 <tr>
 <td align="center" width="33%">
-  <img src="assets/vitrine/etape_telecharger.png" width="160" alt=""><br>
+  <img src="assets/vitrine/etape_telecharger.png?v=2" width="160" alt=""><br>
   <b>1 · Télécharge</b><br>
   <sub><a href="../../releases/latest">le Compagnon</a> — pose-le où tu veux</sub>
 </td>
 <td align="center" width="33%">
-  <img src="assets/vitrine/etape_installer.png" width="160" alt=""><br>
+  <img src="assets/vitrine/etape_installer.png?v=2" width="160" alt=""><br>
   <b>2 · Installe</b><br>
   <sub>double-clic : il trouve ton jeu et<br>installe la traduction en un bouton</sub>
 </td>
 <td align="center" width="33%">
-  <img src="assets/vitrine/etape_jouer.png" width="160" alt=""><br>
+  <img src="assets/vitrine/etape_jouer.png?v=2" width="160" alt=""><br>
   <b>3 · Joue</b><br>
   <sub>c'est en français — et les mises à jour<br>arrivent toutes seules 🎉</sub>
 </td>
@@ -55,7 +55,7 @@
 > zip de fichiers texte, aucun programme) est expliquée pas à pas ici :
 > **[Guide d'installation complet →](docs/INSTALLATION.md)**
 
-<p align="center"><img src="assets/vitrine/separateur.png" alt="" width="80%"></p>
+<p align="center"><img src="assets/vitrine/separateur.png?v=2" alt="" width="80%"></p>
 
 ## Ce qui est traduit
 
@@ -68,13 +68,13 @@
 Un texte encore en anglais ? C'est normal sur un jeu de cette taille — et c'est
 là que **tu** entres en jeu. 👇
 
-<p align="center"><img src="assets/vitrine/separateur.png" alt="" width="80%"></p>
+<p align="center"><img src="assets/vitrine/separateur.png?v=2" alt="" width="80%"></p>
 
 ## Contribue en jouant — sans rien faire de plus
 
 <table>
 <tr>
-<td width="140" align="center"><img src="assets/vitrine/vignette_contribuer.png" width="120" alt=""></td>
+<td width="140" align="center"><img src="assets/vitrine/vignette_contribuer.png?v=2" width="120" alt=""></td>
 <td>
 
 Pendant que tu joues, l'addon **note tout seul** les textes encore en anglais
@@ -87,7 +87,7 @@ Jamais rien de personnel : uniquement des textes du jeu.
 </td>
 </tr>
 <tr>
-<td width="140" align="center"><img src="assets/vitrine/vignette_compagnon.png" width="120" alt=""></td>
+<td width="140" align="center"><img src="assets/vitrine/vignette_compagnon.png?v=2" width="120" alt=""></td>
 <td>
 
 **Le Compagnon**, c'est la petite application qui fait tout : installation,
@@ -100,7 +100,7 @@ officiels des PNJ). Optionnelle — mais adoptée.
 </tr>
 </table>
 
-<p align="center"><img src="assets/vitrine/separateur.png" alt="" width="80%"></p>
+<p align="center"><img src="assets/vitrine/separateur.png?v=2" alt="" width="80%"></p>
 
 ## Envie d'en savoir plus ?
 
@@ -116,7 +116,7 @@ La traduction est **gratuite et le restera** — rien n'est jamais bloqué
 derrière un don. Si elle rend tes soirées meilleures, tu peux offrir un café :
 
 <p align="center">
-  <a href="https://buymeacoffee.com/lepetitdan"><img src="assets/vitrine/bouton_cafe.png" width="300" alt="☕ Offrir un café"></a>
+  <a href="https://buymeacoffee.com/lepetitdan"><img src="assets/vitrine/bouton_cafe.png?v=2" width="300" alt="☕ Offrir un café"></a>
 </p>
 
 Et un immense merci à **tous ceux qui envoient leurs rapports** : chaque zone
