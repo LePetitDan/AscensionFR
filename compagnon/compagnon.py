@@ -197,6 +197,25 @@ def version_installee(jeu):
     return None
 
 
+def _contexte_ssl():
+    """Contexte HTTPS tolérant aux magasins de certificats abîmés (rapport
+    joueur du 22/07/2026 : CERTIFICATE_VERIFY_FAILED au téléchargement des
+    voix). On fait confiance au magasin Windows (y compris l'antivirus qui
+    ré-signe le HTTPS) ET au paquet certifi embarqué (magasin incomplet).
+    JAMAIS de connexion non vérifiée : si les deux échouent, on échoue."""
+    import ssl
+    contexte = ssl.create_default_context()
+    try:
+        import certifi
+        contexte.load_verify_locations(certifi.where())
+    except Exception:
+        pass                      # sans certifi, le magasin système suffit
+    return contexte
+
+
+CONTEXTE_SSL = _contexte_ssl()
+
+
 def en_tuple(version):
     return tuple(int(x) for x in re.findall(r"\d+", version or "0"))
 
@@ -204,7 +223,8 @@ def en_tuple(version):
 def derniere_release():
     """(version, url_du_zip, url_de_l_exe) de la dernière release GitHub."""
     req = urllib.request.Request(API_RELEASE, headers=UA)
-    with urllib.request.urlopen(req, timeout=20) as r:
+    with urllib.request.urlopen(req, timeout=20,
+                                context=CONTEXTE_SSL) as r:
         infos = json.load(r)
     version = (infos.get("tag_name") or "").lstrip("vV")
     url_zip, url_exe = None, None
@@ -236,7 +256,8 @@ def telecharger_fichier(url, progres=None, suffixe=".zip"):
     chemin. progres(fait, total) est appelé au fil de l'eau."""
     req = urllib.request.Request(url, headers=UA)
     fd, chemin = tempfile.mkstemp(suffix=suffixe, prefix="AscensionFR_")
-    with urllib.request.urlopen(req, timeout=60) as r, \
+    with urllib.request.urlopen(req, timeout=60,
+                                context=CONTEXTE_SSL) as r, \
             os.fdopen(fd, "wb") as f:
         total = int(r.headers.get("Content-Length") or 0)
         fait = 0
@@ -448,7 +469,7 @@ def envoyer_rapport_discord(rapport, caches=None):
         WEBHOOK_RAPPORTS, data=b"".join(morceaux), method="POST",
         headers={"User-Agent": UA["User-Agent"],
                  "Content-Type": "multipart/form-data; boundary=" + frontiere})
-    with urllib.request.urlopen(req, timeout=60):
+    with urllib.request.urlopen(req, timeout=60, context=CONTEXTE_SSL):
         pass                               # 2xx = envoyé ; sinon une exception
 
 
