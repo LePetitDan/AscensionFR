@@ -12,7 +12,7 @@
 
 <p align="center">
   <b>La traduction française complète pour <a href="https://ascension.gg">Project Ascension</a>.</b><br>
-  <b>Plus de 660 000 textes</b> · <b>voix françaises</b> · toutes les classes, y compris les customs · installation en <b>1 clic</b>.
+  <b>Plus de 660 000 textes</b> · <b>voix françaises</b> · toutes les classes, y compris les customs · installation en <b>1 clic</b> avec <b>le Hub</b>.
 </p>
 
 <p align="center">
@@ -32,7 +32,7 @@
 <td align="center" width="33%">
   <img src="assets/vitrine/etape_telecharger.png?v=2" width="160" alt=""><br>
   <b>1 · Télécharge</b><br>
-  <sub><a href="../../releases/latest">le Compagnon</a> — pose-le où tu veux</sub>
+  <sub><a href="../../releases/latest">le Hub</a> — pose-le où tu veux</sub>
 </td>
 <td align="center" width="33%">
   <img src="assets/vitrine/etape_installer.png?v=2" width="160" alt=""><br>
@@ -57,12 +57,32 @@
 
 <p align="center"><img src="assets/vitrine/separateur.png?v=2" alt="" width="80%"></p>
 
+## 🧩 Le Hub — la traduction *et* un catalogue d'addons français
+
+**Le Hub** est la petite application qui fait tout, en un clic :
+
+- **Installe et met à jour la traduction** — il trouve ton jeu tout seul, pose
+  les fichiers, et les mises à jour arrivent automatiquement.
+- **Un catalogue d'addons communautaires entièrement traduits**, à installer et
+  mettre à jour d'un bouton :
+  - **[AscensionFR-Confort](https://github.com/LePetitDan/AscensionFR-Confort)** — quêtes accélérées, butin instantané, marchand malin ;
+  - **[AscensionFR-Équipement](https://github.com/LePetitDan/AscensionFR-Equipement)** — verdict d'objet en % dans l'infobulle, flèches vertes dans les sacs ;
+  - *…et d'autres addons traduits viendront enrichir le catalogue.*
+- **Les voix françaises** (doublages d'époque des PNJ) en un bouton doré.
+- **L'envoi des découvertes** : les textes encore en anglais que tu croises en
+  jouant, transmis en un clic pour être traduits pour tout le monde.
+
+Le Hub remplace l'ancien Compagnon — si tu l'avais déjà, il se met à jour vers
+le Hub tout seul. [Code source ouvert](compagnon/).
+
+<p align="center"><img src="assets/vitrine/separateur.png?v=2" alt="" width="80%"></p>
+
 ## 🔊 Les voix françaises (optionnel)
 
 Les doublages français d'époque — dialogues des PNJ, salutations, boss —
 existent en **pack séparé** : 14 442 fichiers audio.
 
-- **Avec le Compagnon** : clique le bouton doré **« Voix françaises »**,
+- **Avec le Hub** : clique le bouton doré **« Voix françaises »**,
   il télécharge et installe tout, tout seul.
 - **À la main** : télécharge `AscensionFR_Voix.zip` depuis
   [le dépôt des voix](https://github.com/LePetitDan/AscensionFR-Voix/releases/latest)
@@ -78,7 +98,7 @@ Pack volumineux (~1,4 Go), hébergé à part — jamais inclus dans l'addon.
 | | | |
 |---|---|---|
 | 📜 **Quêtes** — titres, objectifs, descriptions, réponses des PNJ | ✨ **Sorts & talents** — tous les arbres, customs compris | 🎒 **Objets** — noms, effets, enchantements |
-| 🗺️ **Zones & carte du monde** — noms officiels partout | 🖼️ **Fenêtres du jeu** — spécialisations, métiers, monnaies, grimoire… | 💬 **Tchat** — butin, compétences, hauts faits, erreurs |
+| 🗺️ **Zones & carte du monde** — noms officiels partout | 🖼️ **Fenêtres du jeu** — spécialisations, métiers, monnaies, grimoire, recherche de groupe, JcJ… | 💬 **Tchat** — butin, compétences, hauts faits, erreurs |
 | 🐺 **Créatures & PNJ** — noms, dialogues, plaques | 🏰 **Écran de connexion** — races, classes, personnages | 🏆 **Hauts faits, livres, métiers**… |
 
 Un texte encore en anglais ? C'est normal sur un jeu de cette taille — et c'est
@@ -94,23 +114,11 @@ là que **tu** entres en jeu. 👇
 <td>
 
 Pendant que tu joues, l'addon **note tout seul** les textes encore en anglais
-que tu croises. À la fermeture du jeu, le Compagnon te propose de les envoyer —
+que tu croises. À la fermeture du jeu, le Hub te propose de les envoyer —
 **un clic**, et ils sont traduits pour tout le monde dans la version suivante.
 
 Jamais rien de personnel : uniquement des textes du jeu.
 **[Comment ça marche, en détail →](docs/CONTRIBUER.md)**
-
-</td>
-</tr>
-<tr>
-<td width="140" align="center"><img src="assets/vitrine/vignette_compagnon.png?v=2" width="120" alt=""></td>
-<td>
-
-**Le Compagnon**, c'est la petite application qui fait tout : installation,
-mises à jour automatiques, envoi des découvertes, diagnostic en un clic —
-et le bouton doré qui installe les **voix françaises** (les doublages
-officiels des PNJ). Optionnelle — mais adoptée.
-[Code source ouvert](compagnon/).
 
 </td>
 </tr>

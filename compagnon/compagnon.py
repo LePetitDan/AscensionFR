@@ -54,7 +54,7 @@ PAGE_RELEASES = "https://github.com/" + DEPOT + "/releases"
 # Version de CETTE application (alignée sur la release qui l'embarque). Quand
 # une release plus récente sort, le Compagnon propose son propre remplacement
 # (lien vers la page de téléchargement) en plus de mettre à jour l'addon.
-VERSION_COMPAGNON = "2.2.1"
+VERSION_COMPAGNON = "3.0.0"
 
 # Salon des rapports : URL du webhook Discord (fournie par le mainteneur).
 # VIDE -> le bouton « Envoyer » n'existe pas, seul « Copier » reste (aucun
