@@ -1356,6 +1356,15 @@ class Hub(tk.Tk):
             texte = "Joue avec l'addon, puis reviens envoyer ta récolte."
         self.canvas.itemconfigure(self.contrib_compteur, text=texte)
         if not self.envoi_en_cours:
+            # Le compteur en attente (repris de l'ancien Compagnon, redemandé
+            # par Dan le 24/07). L'attente vient de lire_stats — les entrées
+            # déjà parties ne comptent plus ; il retombe donc à 0 dès l'envoi.
+            if attente and attente > 0:
+                etat = ("Vous avez %s texte(s) en attente d'envoi."
+                        % "{:,}".format(attente).replace(",", " "))
+            else:
+                etat = "Aucun texte en attente d'envoi."
+            self.canvas.itemconfigure(self.contrib_etat, text=etat)
             possible = bool(logique.WEBHOOK_RAPPORTS
                             and logique.jeu_valide(self.jeu))
             self.btn_envoyer.configurer(
@@ -1422,27 +1431,33 @@ class Hub(tk.Tk):
 
     def _apres_envoi(self, etat, message):
         self.envoi_en_cours = False
-        self.canvas.itemconfigure(self.contrib_etat, text=message)
+        # Le message d'issue (« Rapport envoyé », erreur…) va dans la barre de
+        # statut ; le compteur (contrib_etat) reste réservé au nombre en
+        # attente, pour que Dan le voie toujours et le voie retomber à 0.
         self.statut("succes" if etat in ("reussi", "vide") else "erreur",
                     message)
+        if etat in ("reussi", "vide"):
+            # Tout est parti : compteur à 0 immédiatement (lire_stats le
+            # reconfirmera juste après, mais on ne fait pas attendre l'œil).
+            self.stats = (self.stats[0], 0)
         self.rafraichir_contrib()
 
     # ------------------------------------------------------------- mode démo
     def _peupler_demo(self):
         """États factices pour les captures d'écran (aucun réseau)."""
-        self.version_locale, self.version_dispo = "2.2.1", "3.0.0"
-        self.note = ("## 3.0.0 — le Hub\n"
-                     "- Catalogue d'addons français en un clic\n"
-                     "- Grimoire et fenêtres d'Ascension traduits\n"
-                     "- Bulles de talents + 793 noms de sorts corrigés\n"
-                     "- D'autres addons traduits arrivent bientôt\n"
+        self.version_locale, self.version_dispo = "3.0.1", "3.1.0"
+        self.note = ("## 3.1.0 — le canal français & la communauté\n"
+                     "- Canal « AscensionFR » : retrouve les francophones "
+                     "du serveur en un clic\n"
+                     "- Pseudos colorés, onglet dédié, recherche de groupe\n"
+                     "- G.B.G (interface de guilde) rejoint le catalogue\n"
+                     "- Effets « Utiliser » des objets enfin traduits\n"
+                     "- DragonUI : les auras des barres de vie remarchent\n"
                      "\nUn mot de Dan :\n"
-                     "Ce week-end, je corrige un maximum de bugs ; ensuite la "
-                     "traduction avancera plus doucement, mais vos rapports "
-                     "restent les bienvenus. Merci à la communauté pour tout. "
-                     "Je vais enfin prendre le temps de jouer, au lieu de "
-                     "manger ma carte graphique. Cœur sur vous, et à "
-                     "bientôt en jeu <3\n")
+                     "On parle surtout anglais sur le serveur — avec le "
+                     "canal, on va enfin se retrouver entre francophones. "
+                     "Merci pour vos idées et vos retours, c'est vous qui "
+                     "faites avancer tout ça. Cœur sur vous <3\n")
         self.stats = (12847, 315)
         self.appliquer_trad({"accueil": "ajour", "traduction": "maj",
                              "voix": "ajour", "addons": "ajour",

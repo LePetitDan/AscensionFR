@@ -57,14 +57,14 @@ PAGE_RELEASES = "https://github.com/" + DEPOT + "/releases"
 # Version de CETTE application (alignée sur la release qui l'embarque). Quand
 # une release plus récente sort, le Compagnon propose son propre remplacement
 # (lien vers la page de téléchargement) en plus de mettre à jour l'addon.
-VERSION_COMPAGNON = "3.0.1"
+VERSION_COMPAGNON = "3.1.0"
 
 # Salon des rapports : URL du webhook Discord (fournie par le mainteneur).
 # VIDE -> le bouton « Envoyer » n'existe pas, seul « Copier » reste (aucun
 # envoi réseau). Quand il est renseigné, « Envoyer » poste le rapport en pièce
 # jointe .txt dans le salon — le rapport ne contient QUE des textes du jeu et
 # des numéros de sorts/objets, jamais d'information personnelle.
-WEBHOOK_RAPPORTS = ""    # renseigné uniquement dans l'exe distribué
+WEBHOOK_RAPPORTS = ""    # renseigné uniquement dans l'exe distribué    # renseigné uniquement dans l'exe distribué
 DISCORD = "https://discord.gg/kFJGDJbeay"
 # Soutien au créateur. La traduction reste gratuite : le bouton est volontaire-
 # ment secondaire (contour seul) pour ne pas concurrencer l'envoi de rapport.
