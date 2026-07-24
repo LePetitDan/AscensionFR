@@ -18,9 +18,11 @@ github.com (téléchargement des versions) et le salon Discord du projet (envoi
 du rapport, uniquement quand TU cliques). Tout ce qui part est du texte DU
 JEU — jamais de pseudo, de conversation ni de fichier personnel.
 """
+import ctypes
 import gzip
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -28,6 +30,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.request
 import webbrowser
 import zipfile
@@ -54,7 +57,7 @@ PAGE_RELEASES = "https://github.com/" + DEPOT + "/releases"
 # Version de CETTE application (alignée sur la release qui l'embarque). Quand
 # une release plus récente sort, le Compagnon propose son propre remplacement
 # (lien vers la page de téléchargement) en plus de mettre à jour l'addon.
-VERSION_COMPAGNON = "3.0.0"
+VERSION_COMPAGNON = "3.0.1"
 
 # Salon des rapports : URL du webhook Discord (fournie par le mainteneur).
 # VIDE -> le bouton « Envoyer » n'existe pas, seul « Copier » reste (aucun
@@ -127,41 +130,154 @@ def jeu_valide(chemin):
     return bool(chemin) and os.path.isdir(os.path.join(chemin, "Interface"))
 
 
-def chercher_jeu():
-    """Essaie les emplacements habituels du launcher Ascension, puis balaie le
-    premier niveau de chaque disque : le launcher peut être posé n'importe où,
-    mais le jeu est toujours dans <dossier>\\resources\\ascension-live."""
-    candidats = []
-    for disque in "CDEFGH":
-        racine = disque + ":\\"
-        if not os.path.isdir(racine):
+
+# Deux dispositions vues en vrai : resources\ascension-live (ancienne) et
+# resources\client (celle du launcher actuel — vu chez un joueur).
+FINS_JEU = (("resources", "ascension-live"),
+            ("resources", "client"),
+            ("ascension-live",))
+
+# Dossiers système à ne jamais fouiller : rien n'y sera, et les parcourir
+# coûte des secondes (et déclenche parfois l'antivirus).
+IGNORES = {"windows", "$recycle.bin", "system volume information",
+           "programdata", "recovery", "perflogs", "msocache",
+           "documents and settings", "onedrivetemp"}
+
+
+def _pistes_launcher():
+    """Le launcher Ascension sait où il a installé le jeu. On le lui demande
+    plutôt que de deviner : c'est la seule source FIABLE.
+
+    Ajouté le 24/07/2026 après les retours « le Hub ne trouve pas mon
+    dossier ». L'ancienne recherche ne regardait que les disques C à H et un
+    SEUL niveau de profondeur : elle trouvait D:\\resources\\ascension-live
+    mais ratait D:\\Jeux\\Ascension\\resources\\… — l'installation la plus
+    courante."""
+    pistes = []
+    # 1. La configuration du launcher (Electron : %APPDATA%\Ascension Launcher)
+    for base in (os.environ.get("APPDATA"), os.environ.get("LOCALAPPDATA")):
+        if not base:
             continue
-        # Deux dispositions vues en vrai : resources\ascension-live (ancienne)
-        # et resources\client (celle du launcher actuel — vu chez un joueur).
-        for fin in (("resources", "ascension-live"), ("resources", "client")):
-            candidats += [
-                os.path.join(racine, "Program Files", "Ascension Launcher",
-                             *fin),
-                os.path.join(racine, "Ascension Launcher", *fin),
-                os.path.join(racine, "Ascension", *fin),
-            ]
+        for nom in ("Ascension Launcher", "ascension-launcher"):
+            dossier = os.path.join(base, nom)
+            for fichier in ("config.json", "settings.json",
+                            "preferences.json"):
+                chemin = os.path.join(dossier, fichier)
+                try:
+                    with open(chemin, encoding="utf-8", errors="replace") as f:
+                        texte = f.read(200000)
+                except OSError:
+                    continue
+                # On ne suppose RIEN de la forme du fichier : on ramasse tout
+                # ce qui ressemble à un chemin Windows et on valide ensuite.
+                for brut in re.findall(r'"([A-Za-z]:\\\\[^"]{3,200})"', texte):
+                    pistes.append(brut.replace("\\\\", "\\"))
+                for brut in re.findall(r'"([A-Za-z]:/[^"]{3,200})"', texte):
+                    pistes.append(brut)
+    # 2. Le registre Windows (désinstallateur du launcher)
+    try:
+        import winreg
+        for ruche, chemin in (
+                (winreg.HKEY_CURRENT_USER,
+                 r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_LOCAL_MACHINE,
+                 r"Software\Microsoft\Windows\CurrentVersion\Uninstall")):
+            try:
+                cle = winreg.OpenKey(ruche, chemin)
+            except OSError:
+                continue
+            with cle:
+                for i in range(winreg.QueryInfoKey(cle)[0]):
+                    try:
+                        nom = winreg.EnumKey(cle, i)
+                        if "ascension" not in nom.lower():
+                            continue
+                        with winreg.OpenKey(cle, nom) as sous:
+                            for valeur in ("InstallLocation",
+                                           "DisplayIcon"):
+                                try:
+                                    v = winreg.QueryValueEx(sous, valeur)[0]
+                                except OSError:
+                                    continue
+                                if v:
+                                    pistes.append(os.path.dirname(str(v))
+                                                  if valeur == "DisplayIcon"
+                                                  else str(v))
+                    except OSError:
+                        continue
+    except Exception:
+        pass                       # pas Windows, ou registre inaccessible
+    return pistes
+
+
+def chercher_jeu():
+    """Trouve le dossier du jeu. Trois passes, de la plus fiable à la plus
+    large — on s'arrête à la première qui mord."""
+    def essaie(base):
+        """Le dossier lui-même, ou l'une des dispositions connues dessous."""
+        if jeu_valide(base):
+            return base
+        for fin in FINS_JEU:
+            c = os.path.join(base, *fin)
+            if jeu_valide(c):
+                return c
+        return None
+
+    # PASSE 1 — ce que le launcher déclare lui-même.
+    for piste in _pistes_launcher():
+        piste = piste.rstrip("\\/")
+        for base in (piste, os.path.dirname(piste)):
+            trouve = base and essaie(base)
+            if trouve:
+                return trouve
+
+    # PASSE 2 — les emplacements classiques, sur TOUS les disques (et plus
+    # seulement C à H : un joueur avait le jeu en I:).
+    racines = []
+    for code in range(ord("A"), ord("Z") + 1):
+        racine = chr(code) + ":\\"
+        if os.path.isdir(racine):
+            racines.append(racine)
+    classiques = ("Ascension Launcher", "Ascension", "AscensionLauncher",
+                  "Games", "Jeux", "Program Files", "Program Files (x86)")
+    for racine in racines:
+        for nom in classiques:
+            trouve = essaie(os.path.join(racine, nom))
+            if trouve:
+                return trouve
+            # « D:\\Jeux\\Ascension Launcher\\… » : un cran plus bas.
+            for nom2 in classiques:
+                trouve = essaie(os.path.join(racine, nom, nom2))
+                if trouve:
+                    return trouve
+
+    # PASSE 3 — balayage sur DEUX niveaux (c'était un seul avant, d'où les
+    # échecs). On saute les dossiers système et on borne le travail.
+    for racine in racines:
         try:
-            for dossier in os.listdir(racine):
-                candidats.append(os.path.join(racine, dossier, "resources",
-                                              "ascension-live"))
-                candidats.append(os.path.join(racine, dossier, "resources",
-                                              "client"))
-                candidats.append(os.path.join(racine, dossier,
-                                              "ascension-live"))
+            premiers = sorted(os.listdir(racine))[:60]
         except OSError:
-            pass
-    local = os.environ.get("LOCALAPPDATA")
-    if local:
-        candidats.append(os.path.join(local, "Ascension Launcher",
-                                      "resources", "ascension-live"))
-    for c in candidats:
-        if jeu_valide(c):
-            return c
+            continue
+        for d1 in premiers:
+            if d1.lower() in IGNORES or d1.startswith("."):
+                continue
+            base1 = os.path.join(racine, d1)
+            if not os.path.isdir(base1):
+                continue
+            trouve = essaie(base1)
+            if trouve:
+                return trouve
+            try:
+                seconds = sorted(os.listdir(base1))[:40]
+            except OSError:
+                continue
+            for d2 in seconds:
+                base2 = os.path.join(base1, d2)
+                if not os.path.isdir(base2):
+                    continue
+                trouve = essaie(base2)
+                if trouve:
+                    return trouve
     return None
 
 
@@ -471,6 +587,128 @@ def envoyer_rapport_discord(rapport, caches=None):
                  "Content-Type": "multipart/form-data; boundary=" + frontiere})
     with urllib.request.urlopen(req, timeout=60, context=CONTEXTE_SSL):
         pass                               # 2xx = envoyé ; sinon une exception
+
+
+def raison_echec(exc):
+    """Traduit une exception en une phrase que le joueur peut COMPRENDRE.
+
+    Ajouté le 24/07/2026. Tout échec d'installation affichait « problème
+    réseau » : un disque plein, un antivirus, un chemin trop long ou un zip
+    abîmé envoyaient donc le joueur vérifier sa connexion pour rien. Une
+    mauvaise piste coûte plus cher qu'un message honnête."""
+    import socket
+    import ssl as _ssl
+    if isinstance(exc, PermissionError):
+        return ("Windows a refusé l'écriture dans le dossier du jeu. "
+                "Relance en administrateur (bouton ci-dessous).")
+    if isinstance(exc, _ssl.SSLError):
+        return ("La connexion sécurisée a échoué. C'est presque toujours un "
+                "antivirus ou un pare-feu qui inspecte le trafic : mets "
+                "l'application en exception, ou coupe-le le temps de "
+                "l'installation.")
+    if isinstance(exc, (socket.timeout, TimeoutError)):
+        return ("Le téléchargement a expiré. Connexion trop lente ou coupée — "
+                "réessaie.")
+    if isinstance(exc, urllib.error.HTTPError):
+        if exc.code == 404:
+            return ("Le fichier n'existe plus à cette adresse. Signale-le sur "
+                    "le Discord, c'est un souci de notre côté.")
+        if exc.code in (403, 429):
+            return ("GitHub a temporairement limité les téléchargements. "
+                    "Attends quelques minutes et réessaie.")
+        return "GitHub a répondu une erreur %s." % exc.code
+    if isinstance(exc, urllib.error.URLError):
+        return ("Impossible de joindre GitHub. Vérifie ta connexion, ou "
+                "regarde si un antivirus bloque l'application.")
+    if isinstance(exc, zipfile.BadZipFile):
+        return ("Le fichier téléchargé est abîmé (téléchargement interrompu, "
+                "ou antivirus qui l'a modifié). Réessaie.")
+    if isinstance(exc, OSError):
+        # 28 = disque plein ; 206 sous Windows = chemin trop long.
+        if getattr(exc, "errno", None) == 28:
+            return "Il n'y a plus assez de place sur le disque."
+        texte = str(exc).lower()
+        if "too long" in texte or getattr(exc, "winerror", None) == 206:
+            return ("Un chemin de fichier est trop long pour Windows. "
+                    "Déplace le jeu dans un dossier plus court "
+                    "(par exemple D:\\Ascension).")
+        return "Erreur disque : %s" % exc
+    return "Erreur inattendue : %s: %s" % (type(exc).__name__, exc)
+
+
+def _peut_ecrire(dossier):
+    """Teste POUR DE VRAI le droit d'écriture : sur Windows, os.access ment
+    (il ignore les ACL et le contrôle de compte d'utilisateur)."""
+    if not dossier or not os.path.isdir(dossier):
+        return False
+    temoin = os.path.join(dossier, ".afr_test_ecriture")
+    try:
+        with open(temoin, "w") as f:
+            f.write("x")
+        os.remove(temoin)
+        return True
+    except OSError:
+        return False
+
+
+def diagnostic(jeu=None):
+    """Relevé copiable de l'état de l'installation.
+
+    Les joueurs écrivent « ça marche pas » ; sans données, personne ne peut
+    aider. Ce relevé répond aux quatre questions qui reviennent : le dossier
+    est-il trouvé, peut-on y écrire, GitHub répond-il, et l'addon est-il là.
+    Il ne contient AUCUNE information personnelle — seulement des chemins et
+    des versions."""
+    lignes = []
+
+    def note(cle, valeur):
+        lignes.append("%-26s %s" % (cle + " :", valeur))
+
+    note("Hub", VERSION_COMPAGNON)
+    note("Windows", platform.platform())
+    note("Administrateur", "oui" if _est_admin() else "non")
+
+    cfg = charger_config()
+    memorise = cfg.get("jeu")
+    jeu = jeu or memorise or chercher_jeu()
+    note("Dossier mémorisé", memorise or "aucun")
+    note("Dossier utilisé", jeu or "AUCUN — c'est le problème")
+
+    if jeu:
+        note("Dossier valide", "oui" if jeu_valide(jeu) else
+             "NON (pas de sous-dossier Interface)")
+        note("Écriture autorisée", "oui" if _peut_ecrire(jeu) else
+             "NON — relance en administrateur")
+        note("Version de l'addon", version_installee(jeu) or "non installé")
+        note("Voix installées",
+             "oui" if os.path.isfile(os.path.join(jeu, TEMOIN_VOIX))
+             else "non")
+        sauvegardes = fichiers_sauvegarde(jeu)
+        note("Fichiers de relevé", "%d trouvé(s)" % len(sauvegardes))
+        try:
+            libre = shutil.disk_usage(jeu).free / (1024 ** 3)
+            note("Place libre", "%.1f Go" % libre)
+        except OSError:
+            note("Place libre", "inconnue")
+
+    try:
+        version, url_zip, url_exe = derniere_release()
+        note("GitHub", "joignable — dernière version %s" % (version or "?"))
+        note("Zip de traduction", "présent" if url_zip else "ABSENT")
+        note("Application", "présente" if url_exe else "absente")
+    except Exception as e:
+        note("GitHub", "INJOIGNABLE — " + raison_echec(e))
+
+    note("Envoi des rapports",
+         "configuré" if WEBHOOK_RAPPORTS else "désactivé (copie seulement)")
+    return "\n".join(lignes)
+
+
+def _est_admin():
+    try:
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
 
 
 def empreinte(texte):

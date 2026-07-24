@@ -436,6 +436,10 @@ class Hub(tk.Tk):
             self.iconbitmap(logique.ressource("logo.ico"))
         except Exception:
             pass
+        # Ctrl+D : copie le diagnostic dans le presse-papier, à tout moment.
+        # Sans données, un « ça marche pas » n'est pas dépannable.
+        self.bind("<Control-d>", lambda _e: self.copier_diagnostic())
+        self.bind("<Control-D>", lambda _e: self.copier_diagnostic())
         charger_polices()
         self.decor = Decor()
         self.canvas = tk.Canvas(self, width=M["W"], height=M["H"],
@@ -969,8 +973,19 @@ class Hub(tk.Tk):
         except PermissionError:
             self._sur_canvas(self.appliquer_trad, "protege")
             return
-        except Exception:
+        except Exception as e:
+            # On DIT ce qui a échoué (24/07/2026). Avant, tout finissait en
+            # « serveur injoignable » : un disque plein, un antivirus ou un
+            # chemin trop long envoyaient le joueur vérifier sa connexion
+            # pour rien. Une mauvaise piste coûte plus cher qu'un silence.
             self._sur_canvas(self.appliquer_trad, "injoignable")
+            self._sur_canvas(
+                self.statut, "erreur",
+                logique.raison_echec(e)
+                + "  (diagnostic copié : colle-le sur le Discord)")
+            # Copié d'office : personne ne pense à le faire au moment où ça
+            # rate, et c'est précisément là qu'il vaut de l'or.
+            self._sur_canvas(self.copier_diagnostic, True)
             return
         self.version_locale = self.version_dispo
         self._sur_canvas(self.appliquer_trad, "reussie")
@@ -1007,6 +1022,29 @@ class Hub(tk.Tk):
                                   "la nouvelle version depuis GitHub.")
             return
         self.destroy()
+
+    def copier_diagnostic(self, silencieux=False):
+        """Met le relevé d'installation dans le presse-papier.
+
+        Ajouté le 24/07/2026 : beaucoup de joueurs signalaient « je n'arrive
+        pas à télécharger / trouver le dossier / installer les voix » sans
+        qu'aucune donnée ne permette de trancher. Le relevé ne contient que
+        des chemins et des versions — jamais d'information personnelle."""
+        try:
+            texte = logique.diagnostic(self.jeu)
+        except Exception as e:
+            texte = "Diagnostic impossible : %s: %s" % (type(e).__name__, e)
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(texte)
+            self.update_idletasks()      # sans ça, Windows perd le contenu
+        except Exception:
+            if not silencieux:
+                self.statut("erreur", "Copie impossible.")
+            return
+        if not silencieux:
+            self.statut("succes", "Diagnostic copié — colle-le sur le "
+                                  "Discord, dans le salon d'entraide.")
 
     def relancer_admin(self):
         try:
@@ -1148,8 +1186,16 @@ class Hub(tk.Tk):
             chemin = logique.telecharger_fichier(
                 logique.VOIX_URL, progres=self._progres(self.barre_voix))
             logique.installer_zip(chemin, self.jeu)
-        except Exception:
+        except Exception as e:
+            # Même raison que pour la traduction : on nomme la panne. Les
+            # voix sont un GROS zip (14 442 fichiers) — c'est là que le
+            # disque plein et les chemins trop longs frappent en premier.
             self._sur_canvas(self.appliquer_voix, "erreur")
+            self._sur_canvas(
+                self.statut, "erreur",
+                logique.raison_echec(e)
+                + "  (diagnostic copié : colle-le sur le Discord)")
+            self._sur_canvas(self.copier_diagnostic, True)
             return
         self._sur_canvas(self.appliquer_voix, "installees")
         self._sur_canvas(self.rafraichir_accueil)
@@ -1349,13 +1395,23 @@ class Hub(tk.Tk):
                                  "Rien de nouveau à envoyer — tout est "
                                  "déjà parti. Rejoue un peu !")
                 return
-            caches = logique.extraire_caches(self.jeu)
+            # « caches, _ » et PAS « caches » : extraire_caches rend un COUPLE
+            # (octets, nombre). Le Hub avait perdu le « , _ » de l'ancien
+            # Compagnon (interface_v2.py l. 1438) : on passait alors le tuple
+            # entier à l'envoi, qui fait « bytes + caches » -> TypeError. Tout
+            # envoi de rapport échouait donc depuis la 3.0.0, et le joueur
+            # lisait « vérifie ta connexion » alors que le réseau allait bien.
+            # Corrigé le 24/07/2026, reproduit par un test hors ligne.
+            caches, _ = logique.extraire_caches(self.jeu)
             logique.envoyer_rapport_discord(rapport, caches)
             logique.noter_envoyees(self.cfg, empreintes)
-        except Exception:
+        except Exception as e:
             self._sur_canvas(self._apres_envoi, "horsligne",
-                             "Envoi impossible. Vérifie ta connexion, puis "
-                             "réessaie.")
+                             logique.raison_echec(e)
+                             + "  Tu peux aussi copier le rapport "
+                               "(bouton ci-dessous) et le coller sur "
+                               "le Discord.")
+            self._sur_canvas(self.copier_diagnostic, True)
             return
         self._sur_canvas(self._apres_envoi, "reussi",
                          "Rapport envoyé — merci pour le coup de main !")
