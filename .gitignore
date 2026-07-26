@@ -7,3 +7,5 @@ __pycache__/
 *.pyc
 
 .idea/
+compagnon/build
+compagnon/dist
