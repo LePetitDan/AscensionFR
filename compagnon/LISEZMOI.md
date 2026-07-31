@@ -35,6 +35,48 @@ Les **décors** de la fenêtre sont générés par
 votre propre installation du jeu** : aucune image du jeu n'est redistribuée
 ici, fidèle au principe du projet.
 
+## Lancer sous Linux (Wine / Proton)
+
+Sous Linux, Ascension tourne via un runner (Faugus, Lutris, Steam Proton,
+Bottles…). L'addon de traduction, lui, s'installe et se met à jour exactement
+pareil : le Compagnon détecte automatiquement le jeu dans le prefixe Wine/Proton.
+
+Un seul prérequis système (le reste est géré automatiquement) :
+
+```
+# Debian / Ubuntu / Pop!_OS
+sudo apt install python3-tk
+# Fedora : sudo dnf install python3-tkinter
+# Arch   : sudo pacman -S tk
+```
+
+Puis, depuis ce dossier :
+
+```
+./lancer-linux.sh
+```
+
+Au premier lancement, le script prépare un environnement Python local (`.venv`)
+et installe les dépendances ; ensuite il démarre directement.
+
+> **Astuce lancement rapide** — pour l'avoir dans le menu des applications,
+> créez un fichier `~/.local/share/applications/ascensionfr.desktop` :
+>
+> ```ini
+> [Desktop Entry]
+> Type=Application
+> Name=Compagnon Ascension FR
+> Exec=/chemin/vers/AscensionFR/compagnon/lancer-linux.sh
+> Icon=/chemin/vers/AscensionFR/compagnon/assets/logo.png
+> Terminal=false
+> Categories=Game;
+> ```
+
+La mise à jour automatique du Compagnon lui-même (échange d'exe) ne concerne
+que Windows : sous Linux, on met à jour le dépôt (`git pull`). L'envoi du
+rapport de contribution passe alors par le repli **copier/coller** vers le
+Discord.
+
 ## Reconstruire l'exe soi-même
 
 ```

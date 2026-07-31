@@ -5,3 +5,6 @@
 
 __pycache__/
 *.pyc
+
+# Environnement Python local créé par lancer-linux.sh
+.venv/
