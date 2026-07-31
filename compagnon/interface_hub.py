@@ -75,6 +75,13 @@ METRIQUE = {
     "CARTE_W": 372, "CARTE_H": 118,
     # Panneaux
     "PAN_OR_H": 310, "PAN_NOUV_H": 258, "PAN_LETTRE_H": 330,
+    # Plaques d'infobulle (lot 12 : jamais d'encre sur le bois — tout texte
+    # posé sur la texture passe sur une plaque, la règle que WoW s'applique)
+    "PLAQUE_VERDICT_H": 78,      # accueil : verdict + lien de contrôle
+    "PLAQUE_OUTILS_H": 106,      # traduction : dossier + liens de secours
+    "PLAQUE_NOTE_H": 36,         # voix : note de bas de vue
+    # Zone défilante du catalogue d'addons (le plafond de 6 a sauté)
+    "CATA_Y": 122, "CATA_H": 464,
 }
 
 DECOR_DOSSIER = "hub"                # sous assets/
@@ -94,6 +101,17 @@ VERT = "#2f7f2a"
 ORANGE = "#b8781f"
 ROUGE = "#b23b1f"
 
+# Sur les PLAQUES d'infobulle (fond bleu nuit du jeu), l'encre et les teintes
+# de parchemin sont illisibles : chaque tonalité a sa variante claire,
+# calibrée pour tenir les 4,5:1 du seuil de l'audit sur le fond de plaque.
+P_VERT = "#7fd06a"
+P_ORANGE = "#e8a33d"
+P_ROUGE = "#ff8f70"
+P_OR = OR_VIF
+P_TEXTE = BEIGE
+P_TEXTE_VIF = BEIGE_VIF
+P_DISCRET = "#b9ad8f"
+
 TONALITES = {
     "neutre": "#4a3316",
     "alerte": "#6e4408",
@@ -104,53 +122,68 @@ TONALITES = {
 # --------------------------------------------------------------------------- #
 # Les états de la vue Traduction (repris de l'interface v2, adaptés).
 # --------------------------------------------------------------------------- #
+# « pastille » : la bille d'état du jeu (COMMON/Indicator-*) posée à côté du
+# verdict — la couleur DOUBLE le texte, elle ne le remplace jamais (un
+# daltonien lit la phrase, la pastille n'est qu'un renfort).
+# Lot 12, point 6 : « ajour » et « installees » n'ont PLUS de bouton — un
+# état ne doit pas ressembler à un bouton. Le verdict vit dans le titre, le
+# badge et la pastille.
 ETATS_TRAD = {
     "verification": {
         "titre": "Vérification…", "couleur": OR_SOMBRE,
         "sous": "Recherche de la dernière version…",
         "badge": False, "bouton": None, "ton": "neutre",
+        "pastille": "grise",
         "statut": "Vérification des mises à jour…"},
     "introuvable": {
         "titre": "Dossier introuvable", "couleur": ORANGE,
         "sous": "Choisis d'abord le dossier du jeu ci-dessous.",
         "badge": False, "bouton": None, "ton": "alerte",
+        "pastille": "jaune",
         "statut": "Sélectionne le dossier de World of Warcraft pour "
                   "continuer."},
     "absente": {
         "titre": "Traduction non installée", "couleur": OR_SOMBRE,
         "sous": "Dernière version disponible : {vd}",
         "badge": False, "bouton": "btn_installer", "ton": "neutre",
+        "pastille": "jaune",
         "statut": "Prêt à installer la version {vd}."},
     "ajour": {
         "titre": "Tu es à jour", "couleur": VERT,
-        "sous": "Version {vi} installée",
-        "badge": True, "bouton": "btn_fait", "ton": "succes",
+        "sous": "Version {vi} installée — rien à faire.",
+        "badge": True, "bouton": None, "ton": "succes",
+        "pastille": "verte",
         "statut": "Tout est à jour. Bon jeu !"},
     "maj": {
         "titre": "Mise à jour disponible", "couleur": OR_SOMBRE,
         "sous": "Installée : {vi}   →   Disponible : {vd}",
         "badge": False, "bouton": "btn_maj", "ton": "neutre",
+        "pastille": "jaune",
         "statut": "Une nouvelle version de la traduction t'attend."},
     "injoignable": {
         "titre": "Serveur injoignable", "couleur": ROUGE,
         "sous": "Impossible de joindre GitHub. Vérifie ta connexion.",
         "badge": False, "bouton": "btn_reessayer", "ton": "erreur",
+        "pastille": "rouge",
         "statut": "Impossible de vérifier les mises à jour."},
     "telechargement": {
         "titre": "Installation en cours…", "couleur": OR_SOMBRE,
         "sous": "Téléchargement de la version {vd}",
         "badge": False, "bouton": None, "ton": "neutre",
+        "pastille": "grise",
         "statut": "Téléchargement… ne ferme pas la fenêtre.",
         "progression": True},
     "protege": {
         "titre": "Dossier protégé", "couleur": ORANGE,
         "sous": "Windows empêche l'écriture ici. Relance en administrateur.",
         "badge": False, "bouton": "btn_admin", "ton": "alerte",
+        "pastille": "jaune",
         "statut": "Droits administrateur requis pour ce dossier."},
     "reussie": {
         "titre": "Installation réussie", "couleur": VERT,
         "sous": "En jeu : tape /reload, ou reconnecte-toi.",
         "badge": True, "bouton": None, "ton": "succes",
+        "pastille": "verte",
         "statut": "Traduction installée. Amuse-toi bien !"},
 }
 
@@ -159,30 +192,39 @@ ETATS_VOIX = {
         "titre": "Voix non installées", "couleur": OR_SOMBRE,
         "sous": "Un téléchargement d'environ 1,4 Go — une seule fois.",
         "bouton": "btn_voix", "bascule": None, "ton": "neutre",
+        "badge": False, "pastille": "jaune",
         "statut": "Les voix françaises t'attendent."},
     "telechargement": {
         "titre": "Téléchargement des voix…", "couleur": OR_SOMBRE,
         "sous": "C'est volumineux : laisse la fenêtre ouverte.",
         "bouton": None, "bascule": None, "ton": "neutre",
+        "badge": False, "pastille": "grise",
         "statut": "Téléchargement des voix françaises…",
         "progression": True},
     "installees": {
         "titre": "Voix françaises installées", "couleur": VERT,
         "sous": "14 442 répliques d'époque. Reconnecte-toi si le jeu "
                 "tournait pendant l'installation.",
-        "bouton": "btn_voix_fait", "bascule": "btn_voix_couper",
-        "ton": "succes",
+        # Plus de faux bouton « Voix installées » : l'état vit dans le
+        # titre, le badge et la pastille (lot 12, point 6). La bascule
+        # « Couper » est NEUTRE — le rouge appartient à l'action principale.
+        "bouton": None, "bascule": "btn_voix_couper",
+        "ton": "succes", "badge": True, "pastille": "verte",
+        "consequence": "Couper repasse le jeu aux voix anglaises — rien "
+                       "n'est perdu, un clic les remet.",
         "statut": "Les personnages parlent français. Bon jeu !"},
     "coupees": {
         "titre": "Voix françaises coupées", "couleur": ORANGE,
         "sous": "Les fichiers sont gardés de côté — un clic les remet, "
                 "rien à re-télécharger.",
         "bouton": None, "bascule": "btn_voix_remettre", "ton": "alerte",
+        "badge": False, "pastille": "jaune",
         "statut": "Les voix sont coupées : le jeu parle anglais."},
     "erreur": {
         "titre": "Téléchargement interrompu", "couleur": ROUGE,
         "sous": "Vérifie ta connexion, puis réessaie.",
         "bouton": "btn_voix", "bascule": None, "ton": "erreur",
+        "badge": False, "pastille": "rouge",
         "statut": "Le téléchargement des voix a échoué."},
 }
 
@@ -248,7 +290,16 @@ class Decor:
 
     def poser(self, canvas, nom, x, y, **kw):
         """Pose l'élément pour que son coin haut-gauche (hors ombre) soit à
-        (x, y) — la marge du PNG est déduite automatiquement."""
+        (x, y) — la marge du PNG est déduite automatiquement.
+
+        Si le PNG est ABSENT, on saute proprement (retourne None) au lieu de
+        planter. Sans ce garde-fou, un addon ajouté au catalogue sans son
+        icône « carte_ic_<id>.png » faisait PLANTER le Hub AU DÉMARRAGE pour
+        TOUS les joueurs (un addon du catalogue en 3.1.0, signalé par Dan le
+        24/07/2026). Une icône manquante ne doit jamais casser toute
+        l'application."""
+        if not os.path.isfile(os.path.join(self.dossier, nom + ".png")):
+            return None
         p = self.pad(nom)
         return canvas.create_image(x - p, y - p, anchor="nw",
                                    image=self.photo(nom), **kw)
@@ -258,8 +309,11 @@ class BoutonImage:
     """Bouton dessiné sur le canvas : image au repos, image de survol,
     enfoncement de 2 px au clic, état désactivé (image grise, sans action)."""
 
-    def __init__(self, app, nom, x, y, commande=None, tags=()):
-        self.app, self.canvas, self.decor = app, app.canvas, app.decor
+    def __init__(self, app, nom, x, y, commande=None, tags=(), canvas=None):
+        # `canvas` : par défaut le canvas principal ; le catalogue d'addons
+        # vit sur son propre canvas défilant (lot 12, point 7).
+        self.app, self.decor = app, app.decor
+        self.canvas = canvas if canvas is not None else app.canvas
         self.x, self.y = x, y
         self.commande = commande
         self.nom = None
@@ -352,31 +406,77 @@ def version_toc(jeu, dossier):
     return "?"                       # installé, version non déclarée
 
 
+def _taille_lisible(octets):
+    """« 1,7 Go » plutôt que « 1825361920 » : la liste de ce qu'on va
+    supprimer doit se lire d'un coup d'œil."""
+    for unite, seuil in (("Go", 1 << 30), ("Mo", 1 << 20), ("Ko", 1 << 10)):
+        if octets >= seuil:
+            return ("%.1f %s" % (octets / float(seuil), unite)).replace(
+                ".", ",")
+    return "%d octets" % octets
+
+
+def dossiers_addon_du_zip(tampon):
+    """Tous les dossiers d'addon contenus dans une archive déballée.
+
+    Un dossier d'addon, c'est un dossier qui porte SON PROPRE .toc — la règle
+    de WoW. On ne descend pas dedans une fois trouvé : les libs (AceGUI,
+    LibStub…) ne sont pas des addons, et un .toc d'exemple planqué au fond ne
+    doit pas créer un faux dossier. Rend une liste de (nom, chemin)."""
+    trouves = []
+    for racine, dossiers, fichiers in os.walk(tampon):
+        nom = os.path.basename(racine)
+        bas = {f.lower() for f in fichiers}
+        if nom and (nom.lower() + ".toc") in bas:
+            trouves.append((nom, racine))
+            dossiers[:] = []          # trouvé : on ne fouille pas dessous
+    return trouves
+
+
 def installer_addon_zip(chemin_zip, jeu, dossier):
-    """Déballe un zip d'addon dans Interface\\AddOns\\<dossier>. Le zip peut
-    contenir le dossier à sa racine, ou (archive GitHub) un dossier
-    intermédiaire « Depot-branche/ » : on cherche le .toc et on re-racine."""
+    """Déballe un zip d'addon dans Interface\\AddOns. Le zip peut contenir le
+    dossier à sa racine, ou (archive GitHub) un dossier intermédiaire
+    « Depot-branche/ » : on cherche les .toc et on re-racine.
+
+    26/07/2026 — on installe TOUS les dossiers d'addon du zip, plus seulement
+    celui qui porte le nom de la fiche. DragonUI se livre en DEUX dossiers
+    frères : DragonUI et DragonUI_Options (« ## LoadOnDemand: 1 »,
+    « ## Dependencies: DragonUI »). L'ancien re-racinage sur le seul
+    « DragonUI.toc » copiait le premier et jetait le second avec le dossier
+    temporaire — d'où le « module des options n'est pas installé » en jeu, et
+    le bouton DragonUI qui disparaît du menu Échap (gamemenu.lua:204). Deux
+    joueurs sont allés chercher le dossier manquant sur le dépôt d'origine ;
+    ce n'était pas à eux de le faire.
+
+    Rend la liste des noms de dossiers réellement installés."""
     addons = os.path.join(jeu, "Interface", "AddOns")
     tampon = tempfile.mkdtemp(prefix="AscensionFR_addon_")
     try:
         with zipfile.ZipFile(chemin_zip) as z:
             z.extractall(tampon)
-        source = None
-        for racine, _dossiers, fichiers in os.walk(tampon):
-            for f in fichiers:
-                if f.lower() == (dossier + ".toc").lower():
-                    source = racine
-                    break
-            if source:
-                break
-        if not source:
+        sources = dossiers_addon_du_zip(tampon)
+        # (le zip téléchargé est effacé dans le finally : installer_zip le
+        # faisait, pas nous — onze archives orphelines traînaient dans le
+        # %TEMP% de Dan, une par installation d'addon depuis le début)
+        if not any(n.lower() == dossier.lower() for n, _c in sources):
+            # Garde-fou inchangé : si l'addon attendu n'est pas là, c'est que
+            # l'URL a changé de contenu — on ne pose RIEN plutôt que n'importe
+            # quoi dans le dossier AddOns du joueur.
             raise ValueError("le zip ne contient pas " + dossier + ".toc")
-        cible = os.path.join(addons, dossier)
-        if os.path.isdir(cible):
-            shutil.rmtree(cible)
-        shutil.copytree(source, cible)
+        poses = []
+        for nom, source in sources:
+            cible = os.path.join(addons, nom)
+            if os.path.isdir(cible):
+                shutil.rmtree(cible)
+            shutil.copytree(source, cible)
+            poses.append(nom)
+        return poses
     finally:
         shutil.rmtree(tampon, ignore_errors=True)
+        try:
+            os.remove(chemin_zip)
+        except OSError:
+            pass
 
 
 def _candidats_registre():
@@ -461,11 +561,30 @@ class Hub(tk.Tk):
 
         # Données vivantes
         self.cfg = logique.charger_config()
+        self.cfg.setdefault("envoi_auto", True)   # contributions auto (opt-out)
         self.jeu = self.cfg.get("jeu")
-        if not logique.jeu_valide(self.jeu):
-            self.jeu = logique.chercher_jeu()
-            if self.jeu:
-                self.cfg["jeu"] = self.jeu
+        # RATTRAPAGE DES CONFIGS HÉRITÉES (26/07/2026). Durcir « Changer… »
+        # ne protège que celui qui reclique dessus. Les douze joueurs bloqués
+        # ont un mauvais chemin DÉJÀ écrit dans leur compagnon.json par une
+        # version précédente — s'il passait le vieux test, il restait là pour
+        # toujours, et le Hub installait à côté sans un mot. On le repasse
+        # donc par le correcteur au démarrage, en silence quand il retombe
+        # sur ses pattes.
+        if self.jeu and not logique.racine_jeu(self.jeu):
+            racine, _note = logique.corriger_dossier_jeu(self.jeu)
+            if racine:
+                self.jeu = racine
+                self.cfg["jeu"] = racine
+                logique.sauver_config(self.cfg)
+        if not logique.racine_jeu(self.jeu):
+            trouve = logique.chercher_jeu()
+            # On ne remplace un chemin mémorisé que par MIEUX : si la
+            # recherche ne rend rien de solide, on garde l'ancien pour que le
+            # contrôle d'installation puisse en parler au joueur.
+            if trouve and (logique.racine_jeu(trouve)
+                           or not logique.jeu_valide(self.jeu)):
+                self.jeu = trouve
+                self.cfg["jeu"] = trouve
                 logique.sauver_config(self.cfg)
         self.version_locale = (logique.version_installee(self.jeu)
                                if logique.jeu_valide(self.jeu) else None)
@@ -476,7 +595,24 @@ class Hub(tk.Tk):
         self.note = None             # patch-note (markdown brut)
         self.stats = (None, 0)       # (total traduit, en attente d'envoi)
         self.catalogue = self._charger_catalogue()
+        if demo == "addons":
+            # En démo, on gonfle le catalogue à 8 fiches : c'est la preuve
+            # visuelle que le plafond de 6 a sauté et que le défilement
+            # marche (lot 12, point 7). Icônes déjà cuites pour les trois.
+            self.catalogue = self.catalogue + [
+                {"id": "dbm", "nom": "Deadly Boss Mods",
+                 "desc": "Alertes de combat pour les donjons et raids.",
+                 "dossier": "DBM-Core", "etat": "bientot"},
+                {"id": "adibags", "nom": "AdiBags",
+                 "desc": "Sacs en un seul panneau, rangé par catégories.",
+                 "dossier": "AdiBags", "etat": "bientot"},
+                {"id": "lootcollector", "nom": "LootCollector",
+                 "desc": "Suivi des collectes et des butins rares.",
+                 "dossier": "LootCollector", "etat": "bientot"}]
         self.versions_distantes = {}  # id -> tag de la dernière release
+        self.url_distantes = {}       # id -> URL du dernier asset .zip (API)
+        self.controle = None          # contrôle d'installation (lecture disque)
+        self.installations_en_cours = set()   # ids d'addons en cours de pose
 
         # Construction
         self.decor.poser(self.canvas, "fond", 0, 0)
@@ -498,6 +634,12 @@ class Hub(tk.Tk):
             self.verifier()
             self._fil(self._lire_stats)
             self._fil(self._verifier_addons_fond)
+            self._fil(self._controle_fond)
+            # Envoi automatique des contributions à l'ouverture (opt-out) :
+            # beaucoup de joueurs ne penseraient jamais à cliquer « Envoyer »,
+            # donc leurs textes récoltés (et propositions) ne remonteraient
+            # jamais. Silencieux ; désactivable dans l'onglet Contribuer.
+            self.after(2500, self.envoi_auto_au_lancement)
         self.rafraichir_voix()
         self.rafraichir_addons()
 
@@ -522,8 +664,13 @@ class Hub(tk.Tk):
         for t in TONALITES:
             self.canvas.itemconfigure("etat_" + t, state="hidden")
         self.canvas.itemconfigure("etat_" + ton, state="normal")
+        # Un message qui tient sur la ligne garde la police courante ; un
+        # message long (erreur avec un chemin) passe en petit et se replie
+        # sur deux lignes DANS la boîte, au lieu d'en sortir (lot 12, pt 5).
+        large = self.p_corps.measure(texte) > M["ETAT_W"] - 44
         self.canvas.itemconfigure(self.txt_etat, text=texte,
-                                  fill=TONALITES[ton])
+                                  fill=TONALITES[ton],
+                                  font=self.p_mini if large else self.p_corps)
         self.canvas.tag_raise(self.txt_etat)
 
     # ------------------------------------------------------- barre latérale
@@ -589,9 +736,14 @@ class Hub(tk.Tk):
             self.decor.poser(self.canvas, "etat_" + ton, M["CX"], M["Y_ETAT"],
                              tags=("etat_" + ton, "etat_boite"))
             self.canvas.itemconfigure("etat_" + ton, state="hidden")
+        # width= OBLIGATOIRE (lot 12, point 5) : sans lui, un message long
+        # (une erreur avec un chemin) sortait de la boîte crème et se faisait
+        # trancher — précisément quand le joueur a besoin de le lire. La
+        # bascule de police vit dans statut().
         self.txt_etat = self.canvas.create_text(
             M["CX"] + 30, M["Y_ETAT"] + M["H_ETAT"] // 2, anchor="w",
-            font=self.p_corps, fill=TONALITES["neutre"], text="")
+            font=self.p_corps, fill=TONALITES["neutre"], text="",
+            width=M["ETAT_W"] - 44)
         self.canvas.itemconfigure("etat_neutre", state="normal")
         self.canvas.itemconfigure(self.txt_etat, text="Bienvenue.")
 
@@ -660,18 +812,70 @@ class Hub(tk.Tk):
         self.statut("erreur", "Impossible de trouver le launcher ou le jeu. "
                               "Vérifie le dossier dans l'onglet Traduction.")
 
+    def _lien_texte(self, x, y, texte, commande, tags, couleur=P_TEXTE,
+                    survol=None, ancre="w"):
+        """Un lien cliquable dessiné sur le canvas. Depuis le lot 12, les
+        liens vivent sur des PLAQUES (fond bleu nuit) : la couleur par défaut
+        est le beige des infobulles, le survol l'éclaircit. Aucun décor à
+        cuire : les PNG du Hub sont figés par fabriquer_decor_hub.py."""
+        if survol is None:
+            survol = BEIGE_VIF if couleur in (P_TEXTE, P_TEXTE_VIF) else \
+                OR_SOMBRE if couleur == ENCRE else P_TEXTE_VIF
+        item = self.canvas.create_text(x, y, anchor=ancre, text=texte,
+                                       font=self.p_lien, fill=couleur,
+                                       tags=tags)
+        # La couleur de base est MUTABLE (le lien du contrôle passe au rouge
+        # ou au vert selon le verdict) : le survol doit rendre la couleur
+        # COURANTE en partant, pas celle de la création.
+        self._liens_couleur = getattr(self, "_liens_couleur", {})
+        self._liens_couleur[item] = couleur
+        self.canvas.tag_bind(item, "<Button-1>", lambda _e: commande())
+        self.canvas.tag_bind(item, "<Enter>", lambda _e: (
+            self.canvas.itemconfigure(item, fill=survol),
+            self.canvas.configure(cursor="hand2")))
+        self.canvas.tag_bind(item, "<Leave>", lambda _e: (
+            self.canvas.itemconfigure(
+                item, fill=self._liens_couleur.get(item, couleur)),
+            self.canvas.configure(cursor="")))
+        return item
+
+    def _lien_recolorer(self, item, couleur):
+        self._liens_couleur = getattr(self, "_liens_couleur", {})
+        self._liens_couleur[item] = couleur
+        self.canvas.itemconfigure(item, fill=couleur)
+
+    def _titre_vue(self, vue, tags):
+        """Le titre de la vue : or vif + contour noir, cuit dans un décor
+        (arbitrage de Dan, 28/07 — le traitement des titres du jeu, sans
+        plaque). En encre sur le bois, il mesurait 3,2:1."""
+        h = self.decor.manifeste.get("titre_" + vue, {}).get("h", 34)
+        self.decor.poser(self.canvas, "titre_" + vue, M["CX"],
+                         M["Y_TITRE"] - h // 2, tags=tags)
+
     # ------------------------------------------------------------- ACCUEIL
     def _construire_accueil(self):
         t = ("vue_accueil",)
         c, cx = self.canvas, M["CX"]
-        c.create_text(cx, M["Y_TITRE"], anchor="w", text="Accueil",
-                      font=self.p_titre, fill=ENCRE, tags=t)
-        # Grand état général
-        self.acc_badge = self.decor.poser(c, "badge_ok", cx + 2, 96, tags=t)
-        self.acc_etat = c.create_text(cx + 74, 124, anchor="w",
+        self._titre_vue("accueil", t)
+        # Grand état général — sur PLAQUE d'infobulle (lot 12, point 2) : en
+        # encre sur le bois, le verdict mesurait 1,4:1 et n'était distingué
+        # que par la teinte — nul pour un joueur daltonien. La pastille
+        # double le verdict, le TEXTE porte toujours le sens.
+        y = 92
+        self.decor.poser(c, "plaque_verdict", cx, y, tags=t)
+        self.acc_pastille = self.decor.poser(c, "pastille_grise",
+                                             cx + 26, y + 16, tags=t)
+        self.acc_etat = c.create_text(cx + 64, y + 27, anchor="w",
                                       text="Vérification…",
-                                      font=self.p_gros, fill=OR_SOMBRE,
+                                      font=self.p_gros, fill=P_OR,
                                       tags=t)
+        # Le lien du contrôle d'installation. Il vit ICI, sur l'accueil, et
+        # pas au fond d'un fichier d'aide : les douze joueurs bloqués en neuf
+        # jours n'ont ouvert aucun fichier d'aide. Sur le bois il mesurait
+        # 1,4:1 — invisible pour ceux-là mêmes à qui il était destiné.
+        self.acc_controle = self._lien_texte(
+            cx + 64, y + 57, "Vérifier mon installation ↗",
+            self.controler_installation, t)
         # Trois tuiles
         y = 170
         libelles = ("Textes traduits", "Voix françaises", "Ta contribution")
@@ -690,34 +894,84 @@ class Hub(tk.Tk):
         c.create_text(cx + 24, y + 30, anchor="w",
                       text="Dernières nouvelles", font=self.p_gros,
                       fill=ENCRE, tags=t)
+        # Le filet séparateur des infobulles du jeu, sous le titre.
+        self.decor.poser(c, "filet_nouvelles", cx + 24, y + 44, tags=t)
         self.acc_note = c.create_text(
-            cx + 24, y + 58, anchor="nw", text="Chargement du patch-note…",
+            cx + 24, y + 60, anchor="nw", text="Chargement du patch-note…",
             font=self.p_corps, fill=ENCRE_DOUCE, width=M["CW"] - 48, tags=t)
-        lien = c.create_text(cx + M["CW"] - 24, y + 30, anchor="e",
-                             text="Tout lire ↗", font=self.p_lien,
-                             fill=OR_SOMBRE, tags=t)
-        c.tag_bind(lien, "<Button-1>",
-                   lambda e: webbrowser.open(logique.PAGE_RELEASES))
+        # « Tout lire » : c'était le seul lien sans survol ni curseur, et
+        # l'or sombre ne tient que 3,5:1 sur parchemin — encre soulignée.
+        self._lien_texte(cx + M["CW"] - 24, y + 30, "Tout lire ↗",
+                         lambda: webbrowser.open(logique.PAGE_RELEASES),
+                         t, couleur=ENCRE, survol=OR_SOMBRE, ancre="e")
         self.boutons_accueil = ()
+
+    def _controle_fond(self):
+        """Le contrôle lit le disque (sauvegardes, listes d'addons) : jamais
+        dans le fil de l'interface."""
+        try:
+            points = logique.controler_installation(self.jeu)
+        except Exception:
+            points = []
+        self._sur_canvas(self._apres_controle, points)
+
+    def _apres_controle(self, points):
+        self.controle = points
+        self.rafraichir_accueil()
+        # Le contrôle arrive APRÈS la vérification réseau : on repasse la
+        # barre d'état pour qu'elle porte le verdict le plus récent.
+        if self.etat_trad in ETATS_TRAD:
+            self.appliquer_trad(self.etat_trad)
 
     def rafraichir_accueil(self):
         c = self.canvas
-        # État général : traduction + dossier
-        if not logique.jeu_valide(self.jeu):
-            texte, coul, badge = "Choisis le dossier du jeu", ORANGE, False
-        elif self.etat_trad == "ajour":
-            texte, coul, badge = "Tout est à jour", VERT, True
-        elif self.etat_trad == "maj":
-            texte, coul, badge = "Une mise à jour t'attend", OR_SOMBRE, False
-        elif self.etat_trad == "absente":
-            texte, coul, badge = "Traduction à installer", OR_SOMBRE, False
-        elif self.etat_trad == "injoignable":
-            texte, coul, badge = "Serveur injoignable", ROUGE, False
+        # Le lien du contrôle porte son propre verdict : « à corriger » en
+        # rouge, « à vérifier toi-même » en orange (la case du lanceur, qu'on
+        # ne peut honnêtement pas lire), « vérifiée » en vert — avec le
+        # NOMBRE de points contrôlés : on sait ce qui a été vérifié, pas
+        # seulement « ça va ». Teintes claires : le lien vit sur la plaque.
+        if self.controle is None:
+            libelle, couleur = "Vérifier mon installation ↗", P_TEXTE
         else:
-            texte, coul, badge = "Vérification…", OR_SOMBRE, False
+            _bien, soucis, inconnus = logique.resume_controle(self.controle)
+            if soucis:
+                libelle, couleur = ("%d point(s) à corriger ↗" % soucis,
+                                    P_ROUGE)
+            elif inconnus:
+                libelle, couleur = ("%d chose(s) à vérifier toi-même ↗"
+                                    % inconnus, P_ORANGE)
+            else:
+                libelle, couleur = ("Installation vérifiée — %d points "
+                                    "contrôlés ↗" % len(self.controle),
+                                    P_VERT)
+        c.itemconfigure(self.acc_controle, text=libelle)
+        self._lien_recolorer(self.acc_controle, couleur)
+
+        # État général : traduction + dossier. La pastille (Indicator du
+        # jeu) double le verdict ; le texte porte toujours le sens.
+        soucis = (logique.resume_controle(self.controle)[1]
+                  if self.controle else 0)
+        if not logique.jeu_valide(self.jeu):
+            texte, coul, bille = "Choisis le dossier du jeu", P_ORANGE, "jaune"
+        elif soucis:
+            # JAMAIS de « tout est à jour » par-dessus un contrôle en échec :
+            # c'est exactement ce qui a envoyé douze joueurs sur le Discord.
+            texte, coul, bille = ("Installé, mais quelque chose bloque",
+                                  P_ROUGE, "rouge")
+        elif self.etat_trad == "ajour":
+            texte, coul, bille = "Tout est à jour", P_VERT, "verte"
+        elif self.etat_trad == "maj":
+            texte, coul, bille = "Une mise à jour t'attend", P_OR, "jaune"
+        elif self.etat_trad == "absente":
+            texte, coul, bille = "Traduction à installer", P_OR, "jaune"
+        elif self.etat_trad == "injoignable":
+            texte, coul, bille = "Serveur injoignable", P_ROUGE, "rouge"
+        else:
+            texte, coul, bille = "Vérification…", P_TEXTE, "grise"
         c.itemconfigure(self.acc_etat, text=texte, fill=coul)
-        c.itemconfigure(self.acc_badge,
-                        state="normal" if badge else "hidden")
+        if self.acc_pastille:
+            c.itemconfigure(self.acc_pastille,
+                            image=self.decor.photo("pastille_" + bille))
         # Tuiles
         c.itemconfigure(self.acc_valeurs[0], text="≈ 670 000")
         voix = self._etat_voix_disque()
@@ -762,14 +1016,17 @@ class Hub(tk.Tk):
     def _construire_traduction(self):
         t = ("vue_traduction",)
         c, cx = self.canvas, M["CX"]
-        c.create_text(cx, M["Y_TITRE"], anchor="w", text="Traduction",
-                      font=self.p_titre, fill=ENCRE, tags=t)
+        self._titre_vue("traduction", t)
         y = self.y_pan_or = 96
         self.decor.poser(c, "panneau_or", cx, y, tags=t)
         centre = cx + M["CW"] // 2
         self.trad_titre = c.create_text(centre, y + 62, text="Vérification…",
                                         font=self.p_gros, fill=OR_SOMBRE,
                                         tags=t)
+        # La pastille double le verdict (Indicator du jeu) : posée à gauche
+        # du titre, recalée à chaque changement d'état (le titre est centré).
+        self.trad_pastille = self.decor.poser(c, "pastille_grise",
+                                              centre - 120, y + 51, tags=t)
         self.trad_sous = c.create_text(centre, y + 96, text="",
                                        font=self.p_soustitre,
                                        fill=ENCRE_DOUCE, tags=t)
@@ -779,35 +1036,52 @@ class Hub(tk.Tk):
         # Bouton principal + barre de progression (au même endroit)
         self.y_action = y + 138
         self.btn_trad = BoutonImage(
-            self, "btn_fait", centre - M["BTN_L_W"] // 2, self.y_action,
+            self, "btn_maj", centre - M["BTN_L_W"] // 2, self.y_action,
             tags=t)
         self.btn_trad.cacher()
         self.barre_trad = self._construire_barre(centre, self.y_action + 12,
                                                  t)
-        self.trad_verse = c.create_text(
-            centre, self.y_action + 52, text="", font=self.p_petit,
-            fill=ENCRE_DOUCE, tags=t)
-        # Dossier du jeu, sous le panneau
-        y2 = y + M["PAN_OR_H"] + 34
-        c.create_text(cx, y2, anchor="w", text="Dossier du jeu :",
-                      font=self.p_corps, fill=ENCRE, tags=t)
+        # (« trad_verse » a disparu : élément mort, jamais renseigné.)
+        # La BOÎTE À OUTILS (lot 12, règle n° 1) : dossier du jeu, mise à
+        # jour de l'application et liens de secours quittent le bois — où ils
+        # mesuraient 1,4 à 2,7:1 — pour UNE plaque d'infobulle, à un seul
+        # endroit.
+        y2 = y + M["PAN_OR_H"] + 18
+        self.decor.poser(c, "plaque_outils", cx, y2, tags=t)
+        r1, r2, r3 = y2 + 22, y2 + 52, y2 + 82
+        c.create_text(cx + 24, r1, anchor="w", text="Dossier du jeu :",
+                      font=self.p_corps, fill=P_TEXTE_VIF, tags=t)
         self.trad_dossier = c.create_text(
-            cx + 118, y2, anchor="w", text="—", font=self.p_petit,
-            fill=ENCRE_DOUCE, width=M["CW"] - 260, tags=t)
+            cx + 142, r1, anchor="w", text="—", font=self.p_petit,
+            fill=P_TEXTE, width=M["CW"] - 300, tags=t)
         self.btn_changer = BoutonImage(
-            self, "btn_changer", cx + M["CW"] - M["BTN_P_W"],
-            y2 - M["BTN_P_H"] // 2, commande=self.changer_dossier, tags=t)
+            self, "btn_changer", cx + M["CW"] - M["BTN_P_W"] - 16,
+            r1 - M["BTN_P_H"] // 2, commande=self.changer_dossier, tags=t)
         # Mise à jour de l'APPLICATION elle-même : le Hub remplace le
         # Compagnon (décision de Dan, 23/07), il doit donc porter la même
-        # chaîne d'auto-mise à jour que lui.
+        # chaîne d'auto-mise à jour que lui. Sur le bois : 1,4:1 — un joueur
+        # ne pouvait littéralement pas voir qu'une version l'attendait.
         self.lien_appli = c.create_text(
-            cx, y2 + 30, anchor="w",
+            cx + 24, r2, anchor="w",
             text="Une nouvelle version de l'application est disponible — "
                  "cliquer ici pour l'installer.",
-            font=self.p_lien, fill=OR_SOMBRE, tags=t)
+            font=self.p_lien, fill=P_OR, tags=t)
         c.itemconfigure(self.lien_appli, state="hidden")
         c.tag_bind(self.lien_appli, "<Button-1>",
                    lambda e: self.mettre_a_jour_appli())
+        c.tag_bind(self.lien_appli, "<Enter>",
+                   lambda e: c.configure(cursor="hand2"))
+        c.tag_bind(self.lien_appli, "<Leave>",
+                   lambda e: c.configure(cursor=""))
+        # Les deux sorties : contrôler, et partir proprement. « Tout
+        # désinstaller » reste un lien — pas une action qu'on propose, une
+        # action qu'on doit pouvoir TROUVER (trois joueurs l'ont cherchée,
+        # dont un en colère le 26/07 : à 1,7:1, ils ne cherchaient pas mal).
+        self._lien_texte(cx + 24, r3, "Vérifier mon installation ↗",
+                         self.controler_installation, t)
+        self._lien_texte(cx + M["CW"] - 176, r3, "Tout désinstaller ↗",
+                         self.tout_desinstaller, t, couleur=P_ROUGE,
+                         survol="#ffb39e")
         self.boutons_traduction = (self.btn_trad, self.btn_changer)
         self.etat_trad = "verification"
 
@@ -817,8 +1091,11 @@ class Hub(tk.Tk):
                                 centre - M["BARRE_W"] // 2, y, tags=tags)
         bande = self.canvas.create_image(
             centre - M["BARRE_W"] // 2 + 2, y + 2, anchor="nw", tags=tags)
-        pct = self.canvas.create_text(centre, y + M["BARRE_H"] // 2,
-                                      text="", font=self.p_mini,
+        # Le « % » vit AU-DESSUS de la jauge, en encre sur le parchemin
+        # (lot 12, point 4) : posé sur le rail sombre, il mesurait 1,2:1 —
+        # illisible pendant les 1,4 Go du téléchargement des voix.
+        pct = self.canvas.create_text(centre, y - 12,
+                                      text="", font=self.p_petit,
                                       fill=ENCRE, tags=tags)
         for item in (rail, bande):
             self.canvas.itemconfigure(item, state="hidden")
@@ -862,9 +1139,36 @@ class Hub(tk.Tk):
         fiche = ETATS_TRAD[etat]
         fmt = {"vi": self.version_locale or "?",
                "vd": self.version_dispo or "?"}
+        # JAMAIS de « tu es à jour » avec sa pastille verte par-dessus un
+        # contrôle en échec. C'est toute l'affaire des douze joueurs bloqués
+        # en neuf jours : le Hub était vert, le jeu était en anglais, et rien
+        # ne disait lequel des deux avait raison. Le panneau, le badge et la
+        # barre d'état changent ensemble — un seul verdict à l'écran.
+        soucis = (logique.resume_controle(self.controle)[1]
+                  if self.controle else 0)
+        if soucis and etat in ("ajour", "reussie"):
+            fiche = dict(fiche,
+                         titre="Installée, mais bloquée",
+                         couleur=ROUGE, badge=False, ton="erreur",
+                         pastille="rouge",
+                         bouton=None,
+                         sous="Version {vi} en place — le jeu ne l'affiche "
+                              "pas encore.",
+                         statut="Installée, mais %d point(s) empêchent la "
+                                "traduction de s'afficher — clique "
+                                "« Vérifier mon installation »." % soucis)
         c = self.canvas
         c.itemconfigure(self.trad_titre, text=fiche["titre"],
                         fill=fiche["couleur"])
+        # La pastille suit le verdict : recalée à gauche du titre centré.
+        if self.trad_pastille:
+            c.itemconfigure(self.trad_pastille,
+                            image=self.decor.photo(
+                                "pastille_" + fiche["pastille"]))
+            centre = M["CX"] + M["CW"] // 2
+            demi = self.p_gros.measure(fiche["titre"]) // 2
+            c.coords(self.trad_pastille, centre - demi - 34,
+                     self.y_pan_or + 51)
         c.itemconfigure(self.trad_sous, text=fiche["sous"].format(**fmt))
         # Le badge ne se montre que si la vue Traduction est affichée —
         # sinon il réapparaîtrait par-dessus la vue courante.
@@ -877,11 +1181,9 @@ class Hub(tk.Tk):
                 commandes = {"btn_installer": self.installer_trad,
                              "btn_maj": self.installer_trad,
                              "btn_reessayer": self.verifier,
-                             "btn_admin": self.relancer_admin,
-                             "btn_fait": None}
+                             "btn_admin": self.relancer_admin}
                 self.btn_trad.configurer(
-                    fiche["bouton"], commandes[fiche["bouton"]],
-                    actif=fiche["bouton"] != "btn_fait")
+                    fiche["bouton"], commandes[fiche["bouton"]])
                 self.btn_trad.montrer()
             else:
                 self.btn_trad.cacher()
@@ -899,22 +1201,36 @@ class Hub(tk.Tk):
             self.rafraichir_accueil()
 
     def changer_dossier(self):
+        # L'ancien libellé — « celui qui contient Interface » — enseignait la
+        # mauvaise règle : Data\enUS et Sound contiennent eux aussi un
+        # dossier Interface, et c'est comme ça qu'on installe à côté.
         dossier = filedialog.askdirectory(
-            title="Choisis le dossier du jeu (celui qui contient Interface)")
+            title="Choisis le dossier du jeu (celui qui contient "
+                  "Ascension.exe)")
         if not dossier:
             return
-        dossier = os.path.normpath(dossier)
-        if not logique.jeu_valide(dossier):
-            self.statut("erreur", "Ce dossier ne contient pas le jeu "
-                                  "(pas de dossier Interface).")
+        # On corrige tout seul quand on peut (le joueur a désigné le dossier
+        # du launcher, ou il est descendu jusqu'à Interface\AddOns), et on
+        # refuse en EXPLIQUANT quand on ne peut pas. Jamais d'installation
+        # silencieuse dans un dossier que le jeu ne lira pas.
+        from tkinter import messagebox
+        racine, note = logique.corriger_dossier_jeu(dossier)
+        if not racine:
+            # Une boîte, pas la barre d'état : la barre est réécrite par la
+            # vérification qui suit, et ce message-là doit être lu.
+            messagebox.showwarning("Ce n'est pas le dossier du jeu", note)
+            self.statut("erreur", note)
             return
-        self.jeu = dossier
-        self.cfg["jeu"] = dossier
+        if note:
+            messagebox.showinfo("Dossier du jeu", note)
+        self.jeu = racine
+        self.cfg["jeu"] = racine
         logique.sauver_config(self.cfg)
-        self.version_locale = logique.version_installee(dossier)
+        self.version_locale = logique.version_installee(racine)
         self.verifier()
         self.rafraichir_voix()
         self.rafraichir_addons()
+        self._fil(self._controle_fond)
 
     def verifier(self):
         self._sur_canvas(self.appliquer_trad, "verification")
@@ -960,7 +1276,7 @@ class Hub(tk.Tk):
         self.rafraichir_accueil()
 
     def installer_trad(self):
-        if not self.url_zip:
+        if not self.url_zip or not self.dossier_sur():
             return
         self.appliquer_trad("telechargement")
         self._fil(self._installer_trad_fond)
@@ -989,6 +1305,10 @@ class Hub(tk.Tk):
             return
         self.version_locale = self.version_dispo
         self._sur_canvas(self.appliquer_trad, "reussie")
+        # « Installation réussie » ne veut pas dire « ça marchera » : c'est
+        # là, juste après, que se jouent les deux autres causes (case du
+        # lanceur, interrupteur de /afr). On relance donc le contrôle.
+        self._controle_fond()
 
     def mettre_a_jour_appli(self):
         """Télécharge le nouvel exe et se fait remplacer (même mécanique
@@ -1061,19 +1381,22 @@ class Hub(tk.Tk):
     def _construire_voix(self):
         t = ("vue_voix",)
         c, cx = self.canvas, M["CX"]
-        c.create_text(cx, M["Y_TITRE"], anchor="w", text="Voix françaises",
-                      font=self.p_titre, fill=ENCRE, tags=t)
-        c.create_text(cx, M["Y_TITRE"] + 34, anchor="w",
-                      text="Les cinématiques et les personnages parlent "
-                           "français — les 14 442 répliques d'époque, "
-                           "retrouvées et remises en place.",
-                      font=self.p_corps, fill=ENCRE, width=M["CW"], tags=t)
-        y = 140
+        self._titre_vue("voix", t)
+        # Sous-titre CUIT (beige contouré — en encre sur le bois : ~3:1), et
+        # décollé du titre : à +34, deux lignes chevauchaient les 30 px du
+        # titre (lot 12, point 3).
+        self.decor.poser(c, "soustitre_voix", cx, M["Y_TITRE"] + 28, tags=t)
+        y = self.y_pan_voix = 140
         self.decor.poser(c, "panneau_or", cx, y, tags=t)
         centre = cx + M["CW"] // 2
         self.voix_titre = c.create_text(centre, y + 62, text="",
                                         font=self.p_gros, fill=OR_SOMBRE,
                                         tags=t)
+        self.voix_pastille = self.decor.poser(c, "pastille_grise",
+                                              centre - 120, y + 51, tags=t)
+        self.voix_badge = self.decor.poser(
+            c, "badge_ok", cx + M["CW"] - 92, y + 34, tags=t)
+        c.itemconfigure(self.voix_badge, state="hidden")
         self.voix_sous = c.create_text(centre, y + 96, text="",
                                        font=self.p_soustitre,
                                        fill=ENCRE_DOUCE, tags=t)
@@ -1084,11 +1407,21 @@ class Hub(tk.Tk):
         self.btn_voix_bascule = BoutonImage(
             self, "btn_voix_couper", centre - 110, y + 224, tags=t)
         self.btn_voix_bascule.cacher()
-        c.create_text(cx, y + M["PAN_OR_H"] + 30, anchor="w",
+        # La conséquence de la bascule, écrite SOUS elle : un bouton neutre
+        # n'a plus la couleur pour dire « attention, ça coupe quelque
+        # chose » — alors le texte le dit (arbitrage du 28/07).
+        self.voix_consequence = c.create_text(
+            centre, y + 274, text="", font=self.p_petit, fill=ENCRE_DOUCE,
+            width=M["CW"] - 160, justify="center", tags=t)
+        # La note de bas de vue quitte le bois (3,0:1) pour une plaque.
+        y_note = y + M["PAN_OR_H"] + 18
+        self.decor.poser(c, "plaque_note", cx, y_note, tags=t)
+        c.create_text(cx + 24, y_note + M["PLAQUE_NOTE_H"] // 2, anchor="w",
                       text="Les voix vivent dans un dépôt séparé de la "
                            "traduction : l'une ne peut jamais casser "
                            "l'autre.",
-                      font=self.p_petit, fill=ENCRE, width=M["CW"], tags=t)
+                      font=self.p_petit, fill=P_TEXTE, width=M["CW"] - 48,
+                      tags=t)
         self.boutons_voix = (self.btn_voix, self.btn_voix_bascule)
         self.etat_voix = "absentes"
 
@@ -1108,6 +1441,10 @@ class Hub(tk.Tk):
 
     def rafraichir_voix(self):
         if self.etat_voix == "telechargement":
+            # On ne relit pas le disque en plein téléchargement, mais on
+            # RÉAPPLIQUE l'état : montrer_vue vient de rendre visibles tous
+            # les items de la vue, badge compris — l'état les recorrige.
+            self.appliquer_voix("telechargement")
             return
         self.appliquer_voix(self._etat_voix_disque())
 
@@ -1117,7 +1454,22 @@ class Hub(tk.Tk):
         c = self.canvas
         c.itemconfigure(self.voix_titre, text=fiche["titre"],
                         fill=fiche["couleur"])
+        if self.voix_pastille:
+            c.itemconfigure(self.voix_pastille,
+                            image=self.decor.photo(
+                                "pastille_" + fiche["pastille"]))
+            centre = M["CX"] + M["CW"] // 2
+            demi = self.p_gros.measure(fiche["titre"]) // 2
+            c.coords(self.voix_pastille, centre - demi - 34,
+                     self.y_pan_voix + 51)
+        if self.voix_badge:
+            c.itemconfigure(self.voix_badge,
+                            state="normal" if (fiche.get("badge")
+                                               and self.vue == "voix")
+                            else "hidden")
         c.itemconfigure(self.voix_sous, text=fiche["sous"])
+        c.itemconfigure(self.voix_consequence,
+                        text=fiche.get("consequence", ""))
         if self.vue == "voix":
             if fiche["bouton"]:
                 self.btn_voix.configurer(
@@ -1174,9 +1526,10 @@ class Hub(tk.Tk):
         self.rafraichir_accueil()
 
     def installer_voix(self):
-        if not logique.jeu_valide(self.jeu):
-            self.statut("alerte", "Choisis d'abord le dossier du jeu "
-                                  "(onglet Traduction).")
+        # 1,4 Go déballés à la racine : c'est le pire endroit où se tromper
+        # de dossier. On exige la VRAIE racine, pas « un dossier qui contient
+        # Interface ».
+        if not self.dossier_sur():
             return
         self.appliquer_voix("telechargement")
         self._fil(self._installer_voix_fond)
@@ -1204,42 +1557,110 @@ class Hub(tk.Tk):
     def _construire_addons(self):
         t = ("vue_addons",)
         c, cx = self.canvas, M["CX"]
-        c.create_text(cx, M["Y_TITRE"], anchor="w", text="Addons",
-                      font=self.p_titre, fill=ENCRE, tags=t)
-        c.create_text(cx, M["Y_TITRE"] + 30, anchor="w",
-                      text="Traduits à 100 %, entretenus et distribués par "
-                           "AscensionFR — toute la chaîne est de chez "
-                           "nous.",
-                      font=self.p_corps, fill=ENCRE_DOUCE, tags=t)
+        self._titre_vue("addons", t)
+        # Sous-titre CUIT (beige contouré), décollé du titre : à +30 il le
+        # chevauchait, et en encre sur le bois il mesurait ~2,7:1 (lot 12).
+        self.decor.poser(c, "soustitre_addons", cx, M["Y_TITRE"] + 34,
+                         tags=t)
+        # LE CATALOGUE DÉFILE (lot 12, point 7). L'ancien `catalogue[:6]`
+        # plafonnait à 6 cartes : le 7ᵉ addon disparaissait SANS UN MOT. Les
+        # cartes vivent sur leur propre canvas (qui rogne ce qui dépasse),
+        # le fond de parchemin reste immobile dessous, et une barre aux
+        # textures du jeu (UI-ScrollBar-*) apparaît quand il le faut.
+        self.cv_addons = tk.Canvas(self, width=M["CW"], height=M["CATA_H"],
+                                   highlightthickness=0, bd=0)
+        fond = self.decor.pil("fond").crop(
+            (cx, M["CATA_Y"], cx + M["CW"], M["CATA_Y"] + M["CATA_H"]))
+        self._fond_addons = ImageTk.PhotoImage(fond)
+        self._fond_item = self.cv_addons.create_image(
+            0, 0, anchor="nw", image=self._fond_addons)
+        c.create_window(cx, M["CATA_Y"], window=self.cv_addons, anchor="nw",
+                        tags=t)
+        self.defil_addons = 0
+        self.cv_addons.bind(
+            "<MouseWheel>",
+            lambda e: self._defiler_addons(-(e.delta // 120) * 44))
         self.cartes = []
         self.boutons_addons = []
-        y0 = 122
-        for i, fiche in enumerate(self.catalogue[:6]):
-            x = cx + (i % 2) * (M["CARTE_W"] + 22)
-            y = y0 + (i // 2) * (M["CARTE_H"] + 14)
-            self.decor.poser(c, "carte", x, y, tags=t)
-            self.decor.poser(c, "carte_ic_" + fiche["id"], x + 16, y + 16,
-                             tags=t)
-            c.create_text(x + 86, y + 26, anchor="w", text=fiche["nom"],
-                          font=self.p_nom_carte, fill=ENCRE, tags=t)
-            c.create_text(x + 86, y + 46, anchor="nw", text=fiche["desc"],
-                          font=self.p_mini, fill=ENCRE_DOUCE,
-                          width=M["CARTE_W"] - 108, tags=t)
-            if fiche.get("fr"):
-                self.decor.poser(c, "badge_fr", x + M["CARTE_W"] - 62,
-                                 y + 14, tags=t)
-            version = c.create_text(x + 86, y + M["CARTE_H"] - 16,
-                                    anchor="w", text="",
-                                    font=self.p_mini, fill=ENCRE_DOUCE,
-                                    tags=t)
-            bouton = BoutonImage(
-                self, "btn_carte_bientot",
-                x + M["CARTE_W"] - M["BTN_C_W"] - 14,
-                y + M["CARTE_H"] - M["BTN_C_H"] - 10, tags=t)
-            bouton.cacher()
-            self.boutons_addons.append(bouton)
-            self.cartes.append({"fiche": fiche, "version": version,
-                                "bouton": bouton})
+        for i, fiche in enumerate(self.catalogue):
+            self._construire_carte(i, fiche)
+        # La barre : deux flèches + le pouce, sur le canvas principal, à
+        # droite de la zone. Montrés seulement quand le contenu déborde.
+        x_sb = cx + M["CW"] + 6
+        self.fl_haut = BoutonImage(
+            self, "fleche_haut", x_sb, M["CATA_Y"],
+            commande=lambda: self._defiler_addons(-132), tags=t)
+        self.fl_bas = BoutonImage(
+            self, "fleche_bas", x_sb, M["CATA_Y"] + M["CATA_H"] - 22,
+            commande=lambda: self._defiler_addons(132), tags=t)
+        self.pouce = c.create_image(x_sb + 2, M["CATA_Y"] + 24, anchor="nw",
+                                    image=self.decor.photo(
+                                        "pouce_defilement"), tags=t)
+        self.boutons_addons += [self.fl_haut, self.fl_bas]
+
+    def _construire_carte(self, i, fiche):
+        cv = self.cv_addons
+        x = (i % 2) * (M["CARTE_W"] + 22)
+        y = 6 + (i // 2) * (M["CARTE_H"] + 14)
+        self.decor.poser(cv, "carte", x, y)
+        self.decor.poser(cv, "carte_ic_" + fiche["id"], x + 16, y + 16)
+        cv.create_text(x + 86, y + 26, anchor="w", text=fiche["nom"],
+                       font=self.p_nom_carte, fill=ENCRE)
+        cv.create_text(x + 86, y + 46, anchor="nw", text=fiche["desc"],
+                       font=self.p_mini, fill=ENCRE_DOUCE,
+                       width=M["CARTE_W"] - 108)
+        if fiche.get("fr"):
+            self.decor.poser(cv, "badge_fr", x + M["CARTE_W"] - 62, y + 14)
+        # Largeur BORNÉE au couloir libre à gauche du bouton : un libellé
+        # long (« module manquant : … ») passait SOUS le bouton de la carte.
+        version = cv.create_text(x + 86, y + M["CARTE_H"] - 24,
+                                 anchor="w", text="",
+                                 font=self.p_mini, fill=ENCRE_DOUCE,
+                                 width=M["CARTE_W"] - M["BTN_C_W"] - 108)
+        bouton = BoutonImage(
+            self, "btn_carte_bientot",
+            x + M["CARTE_W"] - M["BTN_C_W"] - 14,
+            y + M["CARTE_H"] - M["BTN_C_H"] - 10, canvas=cv)
+        self.boutons_addons.append(bouton)
+        self.cartes.append({"fiche": fiche, "version": version,
+                            "bouton": bouton})
+
+    def _defiler_addons(self, delta):
+        """Fait glisser les cartes ; le fond, lui, ne bouge pas."""
+        rangees = (len(self.catalogue) + 1) // 2
+        contenu = 6 + rangees * (M["CARTE_H"] + 14)
+        borne = max(0, contenu - M["CATA_H"])
+        vise = max(0, min(borne, self.defil_addons + delta))
+        if vise == self.defil_addons:
+            return
+        bouge = self.defil_addons - vise         # >0 : les cartes descendent
+        self.defil_addons = vise
+        boutons = {carte["bouton"].item for carte in self.cartes}
+        for item in self.cv_addons.find_all():
+            if item == self._fond_item or item in boutons:
+                continue
+            self.cv_addons.move(item, 0, bouge)
+        for carte in self.cartes:
+            carte["bouton"].deplacer(carte["bouton"].x,
+                                     carte["bouton"].y + bouge)
+        self._maj_defilement()
+
+    def _maj_defilement(self):
+        """Montre la barre quand le contenu déborde, et place le pouce."""
+        rangees = (len(self.catalogue) + 1) // 2
+        contenu = 6 + rangees * (M["CARTE_H"] + 14)
+        borne = max(0, contenu - M["CATA_H"])
+        visible = borne > 0 and self.vue == "addons"
+        for fleche in (self.fl_haut, self.fl_bas):
+            (fleche.montrer if visible else fleche.cacher)()
+        if not visible:
+            self.canvas.itemconfigure(self.pouce, state="hidden")
+            return
+        self.canvas.itemconfigure(self.pouce, state="normal")
+        course = M["CATA_H"] - 48 - 24           # entre les deux flèches
+        y = M["CATA_Y"] + 24 + int(course * (self.defil_addons / borne))
+        x_sb = M["CX"] + M["CW"] + 8
+        self.canvas.coords(self.pouce, x_sb, y)
 
     def _verifier_addons_fond(self):
         """Lit le tag de la dernière release GitHub de chaque addon du
@@ -1257,12 +1678,56 @@ class Hub(tk.Tk):
                     % m.group(1), headers=logique.UA)
                 with urllib.request.urlopen(
                         req, timeout=20, context=logique.CONTEXTE_SSL) as r:
-                    tag = (json.load(r).get("tag_name") or "").lstrip("vV")
+                    donnees = json.load(r)
+                tag = (donnees.get("tag_name") or "").lstrip("vV")
+                # URL du dernier asset .zip — indispensable pour les addons qui
+                # mettent la VERSION dans le nom du fichier (NomAddon_1.2.3.zip)
+                # : sans elle, « Mettre à jour » retéléchargeait l'URL FIGÉE de
+                # la fiche et réinstallait la vieille version.
+                dossier = (fiche.get("dossier") or "").lower()
+                zips = [a for a in (donnees.get("assets") or [])
+                        if (a.get("name") or "").lower().endswith(".zip")]
+                choisi = next((a for a in zips if dossier
+                               and dossier in (a.get("name") or "").lower()),
+                              zips[0] if zips else None)
+                if choisi and choisi.get("browser_download_url"):
+                    self.url_distantes[fiche["id"]] = choisi["browser_download_url"]
             except Exception:
                 continue
             if tag:
                 self.versions_distantes[fiche["id"]] = tag
         self._sur_canvas(self.rafraichir_addons)
+
+    def dossier_sur(self):
+        """Le dossier du jeu est-il la VRAIE racine ? Barrière commune à tout
+        ce qui écrit ou supprime.
+
+        Le contrôle d'installation, lui, se contente de signaler — mais poser
+        des fichiers dans un faux dossier, ou annoncer « ton jeu est revenu
+        en anglais » après n'avoir rien supprimé, c'est pire que ne rien
+        faire. Rend True, ou False APRÈS avoir dit pourquoi."""
+        if logique.racine_jeu(self.jeu):
+            return True
+        if self.jeu:
+            self.statut("erreur",
+                        "Le dossier enregistré n'est pas la racine du jeu "
+                        "(« %s ») — clique « Vérifier mon installation »."
+                        % self.jeu)
+        else:
+            self.statut("alerte", "Choisis d'abord le dossier du jeu "
+                                  "(onglet Traduction → Changer).")
+        return False
+
+    def _annexes_manquantes(self, fiche):
+        """Les dossiers COMPAGNONS d'un addon qui ne sont pas sur le disque.
+        DragonUI en a un (DragonUI_Options) : sans lui, l'addon se charge mais
+        ses options sont inaccessibles — le pire des états, parce que rien ne
+        dit au joueur ce qui manque."""
+        if not logique.jeu_valide(self.jeu):
+            return []
+        addons = os.path.join(self.jeu, "Interface", "AddOns")
+        return [d for d in (fiche.get("dossiers") or [])
+                if not os.path.isdir(os.path.join(addons, d))]
 
     def rafraichir_addons(self):
         for carte in self.cartes:
@@ -1275,14 +1740,26 @@ class Hub(tk.Tk):
             elif installee:
                 texte = ("version " + installee
                          if installee != "?" else "détecté chez toi")
-                nom, actif, cmd = "btn_carte_installe", False, None
-                # « Mettre à jour » seulement si la release distante est
+                # Installé : le bouton principal devient « Désinstaller »
+                # (rouge, actionnable), au même format que « Installer ».
+                nom, actif = "btn_carte_desinstaller", True
+                cmd = lambda f=fiche: self.desinstaller_addon(f)
+                # « Mettre à jour » prend le dessus si la release distante est
                 # STRICTEMENT plus récente que la version installée.
                 distante = self.versions_distantes.get(fiche["id"])
                 if (fiche.get("url") and distante and installee != "?"
                         and logique.en_tuple(distante)
                         > logique.en_tuple(installee)):
                     texte = "version %s  →  %s" % (installee, distante)
+                    nom, actif = "btn_carte_maj", True
+                    cmd = lambda f=fiche: self.installer_addon(f)
+                elif fiche.get("url") and self._annexes_manquantes(fiche):
+                    # Cas des joueurs déjà servis par l'ancien Hub : DragonUI
+                    # est là, DragonUI_Options non. Sans ça, leur bouton
+                    # resterait sur « Désinstaller » et rien ne leur dirait
+                    # qu'il leur manque le module des options.
+                    texte = "module manquant : " + ", ".join(
+                        self._annexes_manquantes(fiche))
                     nom, actif = "btn_carte_maj", True
                     cmd = lambda f=fiche: self.installer_addon(f)
             elif fiche.get("url"):
@@ -1292,33 +1769,441 @@ class Hub(tk.Tk):
             else:
                 texte = "non détecté"
                 nom, actif, cmd = "btn_carte_absent", False, None
-            self.canvas.itemconfigure(carte["version"], text=texte)
+            self.cv_addons.itemconfigure(carte["version"], text=texte)
             bouton.configurer(nom, cmd, actif=actif)
             if self.vue == "addons":
                 bouton.montrer()
+        self._maj_defilement()
 
     def installer_addon(self, fiche):
+        if not self.dossier_sur():
+            return
+        # Verrou de ré-entrance : deux clics lançaient deux installations
+        # concurrentes sur le MÊME dossier — l'une fait rmtree pendant que
+        # l'autre copytree, et l'addon finit à moitié posé.
+        if fiche["id"] in self.installations_en_cours:
+            self.statut("alerte", "%s s'installe déjà — laisse-le finir."
+                                  % fiche["nom"])
+            return
+        self.installations_en_cours.add(fiche["id"])
         self.statut("neutre", "Téléchargement de %s…" % fiche["nom"])
         self._fil(self._installer_addon_fond, fiche)
 
     def _installer_addon_fond(self, fiche):
         try:
-            chemin = logique.telecharger_fichier(fiche["url"])
-            installer_addon_zip(chemin, self.jeu, fiche["dossier"])
+            # URL du dernier asset (résolue via l'API) si dispo, sinon l'URL de
+            # la fiche : « Installer / Mettre à jour » prend TOUJOURS la dernière
+            # version, même si le nom du fichier change à chaque release.
+            url = self.url_distantes.get(fiche["id"]) or fiche["url"]
+            chemin = logique.telecharger_fichier(url)
+            poses = installer_addon_zip(chemin, self.jeu, fiche["dossier"])
+        except Exception as e:
+            # On NOMME la panne, comme pour la traduction et les voix : un
+            # « impossible » sec envoyait le joueur sur le Discord sans rien.
+            self._sur_canvas(self.statut, "erreur",
+                             "Installation de %s impossible — %s"
+                             % (fiche["nom"], logique.raison_echec(e)))
+            return
+        finally:
+            self.installations_en_cours.discard(fiche["id"])
+        # On dit ce qui a été posé : quand un addon se livre en plusieurs
+        # dossiers (DragonUI + DragonUI_Options), le joueur voit que le
+        # module d'options est bien arrivé.
+        annexes = [n for n in poses if n.lower() != fiche["dossier"].lower()]
+        supplement = (" (avec %s)" % ", ".join(annexes)) if annexes else ""
+        self._sur_canvas(self.statut, "succes",
+                         "%s installé%s. En jeu : /reload."
+                         % (fiche["nom"], supplement))
+        self._sur_canvas(self.rafraichir_addons)
+
+    def desinstaller_addon(self, fiche):
+        if not self.dossier_sur():
+            return
+        from tkinter import messagebox
+        if not messagebox.askyesno(
+                "Désinstaller",
+                "Désinstaller « %s » ?\n\nSes fichiers seront retirés du jeu.\n"
+                "Tu pourras le réinstaller depuis le Hub à tout moment."
+                % fiche["nom"]):
+            return
+        self.statut("neutre", "Désinstallation de %s…" % fiche["nom"])
+        self._fil(self._desinstaller_addon_fond, fiche)
+
+    def _desinstaller_addon_fond(self, fiche):
+        try:
+            addons = os.path.join(self.jeu, "Interface", "AddOns")
+            for d in [fiche["dossier"]] + (fiche.get("dossiers") or []):
+                cible = os.path.join(addons, d)
+                if os.path.isdir(cible):
+                    shutil.rmtree(cible, ignore_errors=True)
         except Exception:
             self._sur_canvas(self.statut, "erreur",
-                             "Installation de %s impossible." % fiche["nom"])
+                             "Désinstallation de %s impossible." % fiche["nom"])
             return
         self._sur_canvas(self.statut, "succes",
-                         "%s installé. En jeu : /reload." % fiche["nom"])
+                         "%s désinstallé. En jeu : /reload." % fiche["nom"])
         self._sur_canvas(self.rafraichir_addons)
+
+    # ------------------------------------------- CONTRÔLE ET DÉSINSTALLATION
+    # Deux fenêtres à part, en widgets classiques : le décor du Hub est fait
+    # de PNG cuits d'avance (fabriquer_decor_hub.py), et ces deux écrans ont
+    # un nombre de lignes VARIABLE. Une fenêtre sobre qu'on peut relire et
+    # copier vaut mieux qu'un décor qui déborde — et c'est la règle maison
+    # pour tout ce qui est relevé (jamais un print, toujours du copiable).
+    # Lot 12, point 8 : ces fenêtres étaient en Tk gris/moutarde, hors
+    # univers — et ce sont justement les deux moments d'inquiétude du
+    # joueur. Elles passent au parchemin bordé d'or, palette du Hub.
+    FOND_F = "#efe2c0"           # parchemin
+    PANNEAU_F = "#f7eed6"        # carte crème
+    TEXTE_F = ENCRE
+    DISCRET_F = ENCRE_DOUCE
+    BORD_F = "#8a6a2a"           # liseré doré de la fenêtre
+    PASTILLES = {"ok": (VERT, "✓"),
+                 "souci": ("#a02c12", "✗"),
+                 # « vrai, mais lis quand même » : visible sans faire virer
+                 # tout le Hub au rouge (un voyant toujours rouge, plus
+                 # personne ne le regarde).
+                 "reserve": ("#5a7a1e", "≈"),
+                 "inconnu": ("#9c6410", "?")}
+
+    def _fenetre(self, titre, largeur, hauteur):
+        """Une fenêtre fille sobre, centrée sur le Hub, qui ne rend la main
+        qu'une fois fermée (grab) : on ne veut pas d'un contrôle
+        d'installation oublié derrière la fenêtre principale."""
+        f = tk.Toplevel(self)
+        f.title(titre)
+        f.configure(bg=self.FOND_F,
+                    highlightbackground=self.BORD_F,
+                    highlightcolor=self.BORD_F, highlightthickness=2)
+        f.resizable(False, False)
+        try:
+            f.iconbitmap(logique.ressource("logo.ico"))
+        except Exception:
+            pass
+        x = self.winfo_rootx() + (M["W"] - largeur) // 2
+        y = self.winfo_rooty() + max(20, (M["H"] - hauteur) // 2)
+        f.geometry("%dx%d+%d+%d" % (largeur, hauteur, x, y))
+        f.transient(self)
+        f.grab_set()
+        return f
+
+    def _zone_defilante(self, parent, largeur, hauteur):
+        """Une zone qui défile. Le nombre de lignes n'est pas connu d'avance
+        (autant de points de contrôle que de causes, autant d'éléments à
+        supprimer que le joueur en a installé) : sans défilement, le bouton
+        du bas sort de l'écran — et un bouton qu'on ne voit pas est un bouton
+        qui n'existe pas. Rend le cadre dans lequel empiler les lignes."""
+        boite = tk.Frame(parent, bg=self.FOND_F)
+        boite.pack(fill="both", expand=True, padx=18)
+        toile = tk.Canvas(boite, bg=self.FOND_F, highlightthickness=0,
+                          width=largeur, height=hauteur)
+        barre = tk.Scrollbar(boite, orient="vertical", command=toile.yview)
+        dedans = tk.Frame(toile, bg=self.FOND_F)
+        fenetre = toile.create_window((0, 0), window=dedans, anchor="nw",
+                                      width=largeur)
+
+        def molette(evenement):
+            toile.yview_scroll(-1 * (evenement.delta // 120), "units")
+
+        def ajuster(_e=None):
+            toile.configure(scrollregion=toile.bbox("all"))
+            # Les lignes empilées dedans avalent la molette : on la relie sur
+            # chaque descendant (au moment où ils existent, pas avant).
+            piles = [dedans]
+            while piles:
+                w = piles.pop()
+                w.bind("<MouseWheel>", molette)
+                piles.extend(w.winfo_children())
+            # La barre ne s'affiche que si elle sert : une barre grise inutile
+            # à droite d'une liste de trois lignes fait « c'est compliqué ».
+            besoin = dedans.winfo_reqheight() > hauteur
+            if besoin and not barre.winfo_ismapped():
+                barre.pack(side="right", fill="y")
+                toile.configure(width=largeur - 16)
+                toile.itemconfigure(fenetre, width=largeur - 16)
+            elif not besoin and barre.winfo_ismapped():
+                barre.pack_forget()
+        dedans.bind("<Configure>", ajuster)
+        toile.configure(yscrollcommand=barre.set)
+        toile.pack(side="left", fill="both", expand=True)
+
+        # Uniquement des liaisons LOCALES (voir `ajuster` pour les enfants).
+        # Un bind_all survivrait à la fermeture de la fenêtre et lèverait une
+        # TclError à chaque cran de molette dans le Hub, une par fenêtre déjà
+        # fermée.
+        toile.bind("<MouseWheel>", molette)
+        return dedans
+
+    def _bouton(self, parent, texte, commande, accent=False, **kw):
+        # Or du Hub pour l'action principale, crème lisérée pour le reste —
+        # plus de bouton moutarde sur gris (lot 12, point 8).
+        return tk.Button(parent, text=texte, command=commande,
+                         bg="#e8c25a" if accent else "#e6d6ac",
+                         fg="#15130c" if accent else self.TEXTE_F,
+                         activebackground="#d9b44e" if accent else "#dcc998",
+                         activeforeground="#15130c" if accent else
+                         self.TEXTE_F,
+                         relief="flat", bd=0, padx=14, pady=7,
+                         highlightbackground=self.BORD_F,
+                         highlightthickness=1,
+                         font=self.p_corps, cursor="hand2", **kw)
+
+    # -------------------------------------------------- contrôle (objectif A)
+    def controler_installation(self):
+        """« J'ai installé, le jeu reste en anglais » — douze joueurs en neuf
+        jours. On vérifie les trois causes connues et on dit, pour chacune,
+        soit qu'elle est réparée, soit exactement quoi cliquer."""
+        # UNE seule source de vérité. `self.controle` alimente l'accueil et
+        # la barre d'état ; si la fenêtre gardait sa copie à part, une
+        # réparation réussie laissait le Hub rouge jusqu'au redémarrage — le
+        # joueur répare, rien ne change à l'écran, il croit que ça n'a pas
+        # marché.
+        self.controle = self.points_controle = logique.controler_installation(
+            self.jeu)
+        self.rafraichir_accueil()
+        if self.etat_trad in ETATS_TRAD:
+            self.appliquer_trad(self.etat_trad)
+        f = self._fenetre("Vérifier mon installation", 720, 620)
+        self.fen_controle = f
+        tk.Label(f, text="Vérification de l'installation", bg=self.FOND_F,
+                 fg=self.TEXTE_F, font=self.p_gros).pack(anchor="w",
+                                                         padx=24, pady=(20, 2))
+        bien, soucis, inconnus = logique.resume_controle(self.points_controle)
+        if bien:
+            resume, couleur = ("Tout est en place.", VERT)
+        else:
+            morceaux = []
+            if soucis:
+                morceaux.append("%d point(s) à corriger" % soucis)
+            if inconnus:
+                morceaux.append("%d à vérifier toi-même" % inconnus)
+            resume = " · ".join(morceaux)
+            couleur = "#a02c12" if soucis else "#9c6410"
+        tk.Label(f, text=resume, bg=self.FOND_F, fg=couleur,
+                 font=self.p_corps).pack(anchor="w", padx=24, pady=(0, 12))
+
+        pied = tk.Frame(f, bg=self.FOND_F)
+        pied.pack(side="bottom", fill="x", padx=24, pady=14)
+        corps = self._zone_defilante(f, 684, 430)
+        for point in self.points_controle:
+            self._ligne_controle(corps, point)
+
+        self._bouton(pied, "Copier ce relevé",
+                     self._copier_controle).pack(side="left")
+        self._bouton(pied, "Revérifier", self._reverifier).pack(side="left",
+                                                                padx=8)
+        self._bouton(pied, "Fermer", f.destroy,
+                     accent=True).pack(side="right")
+
+    def _ligne_controle(self, parent, point):
+        couleur, signe = self.PASTILLES[point["etat"]]
+        cadre = tk.Frame(parent, bg=self.PANNEAU_F)
+        cadre.pack(fill="x", pady=3)
+        tk.Label(cadre, text=signe, bg=self.PANNEAU_F, fg=couleur,
+                 font=self.p_nom_carte, width=2).pack(side="left",
+                                                      padx=(10, 4), pady=8)
+        texte = tk.Frame(cadre, bg=self.PANNEAU_F)
+        texte.pack(side="left", fill="x", expand=True, pady=8)
+        tk.Label(texte, text=point["titre"], bg=self.PANNEAU_F,
+                 fg=self.TEXTE_F, font=self.p_nom_carte,
+                 anchor="w").pack(fill="x")
+        tk.Label(texte, text=point["detail"], bg=self.PANNEAU_F,
+                 fg=self.DISCRET_F, font=self.p_petit, anchor="w",
+                 justify="left", wraplength=540).pack(fill="x")
+        if point["reparable"]:
+            self._bouton(cadre, "Réparer",
+                         lambda p=point: self._reparer(p),
+                         accent=True).pack(side="right", padx=10)
+
+    def _reparer(self, point):
+        if point["reparable"] == "dossier":
+            self.fen_controle.destroy()
+            self.changer_dossier()
+            return
+        fait, message = logique.reparer(self.jeu, point["reparable"])
+        self.statut("succes" if fait else "alerte", message)
+        self._reverifier()
+
+    def _reverifier(self):
+        self.fen_controle.destroy()
+        self.version_locale = (logique.version_installee(self.jeu)
+                               if logique.jeu_valide(self.jeu) else None)
+        self.controler_installation()   # remet self.controle et l'affichage
+
+    def _texte_controle(self):
+        lignes = ["Contrôle d'installation AscensionFR (Hub %s)"
+                  % logique.VERSION_COMPAGNON, ""]
+        for p in getattr(self, "points_controle", ()):
+            lignes.append("[%s] %s" % (p["etat"].upper(), p["titre"]))
+            lignes.append("     " + p["detail"])
+        return "\n".join(lignes)
+
+    def _copier_controle(self):
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(self._texte_controle())
+            self.update_idletasks()
+            self.statut("succes", "Relevé copié — colle-le sur le Discord.")
+        except Exception:
+            self.statut("erreur", "Copie impossible.")
+
+    # ------------------------------------------ désinstallation (objectif C)
+    def tout_desinstaller(self):
+        """Le 26/07/2026, un joueur a retiré le dossier d'addon et vidé
+        %appdata% : son jeu est resté en français. Normal — le français vient
+        de quatre dépôts, tous dans le dossier du JEU. On liste tout, on
+        montre la liste AVANT, et on dit ce qui n'a pas pu partir."""
+        # LE contrôle qui manquait : sur un dossier erroné, on ne trouvait
+        # rien à supprimer dans le jeu, tout « réussissait », et la fenêtre
+        # annonçait « ton jeu est revenu en anglais » alors que la traduction
+        # et les 1,7 Go de voix étaient toujours là. Mot pour mot le
+        # scénario du joueur en colère du 26/07.
+        if not self.dossier_sur():
+            return
+        elements = logique.elements_desinstallation(self.jeu, self.catalogue)
+        f = self._fenetre("Tout désinstaller", 760, 620)
+        if not elements:
+            tk.Label(f, text="Rien à retirer : ce dossier de jeu est déjà "
+                             "vierge de tout ce que nous posons.",
+                     bg=self.FOND_F, fg=self.TEXTE_F, font=self.p_corps,
+                     wraplength=680, justify="left").pack(padx=24, pady=30)
+            self._bouton(f, "Fermer", f.destroy, accent=True).pack(pady=10)
+            return
+        tk.Label(f, text="Voici tout ce qui va être supprimé", bg=self.FOND_F,
+                 fg=self.TEXTE_F, font=self.p_gros).pack(anchor="w", padx=24,
+                                                         pady=(20, 2))
+        tk.Label(f, text="Rien n'est supprimé tant que tu n'as pas cliqué en "
+                         "bas. Décoche ce que tu veux garder.",
+                 bg=self.FOND_F, fg=self.DISCRET_F,
+                 font=self.p_petit).pack(anchor="w", padx=24, pady=(0, 12))
+        pied = tk.Frame(f, bg=self.FOND_F)
+        pied.pack(side="bottom", fill="x", padx=24, pady=14)
+        corps = self._zone_defilante(f, 724, 430)
+        cases = []
+        for element in elements:
+            var = tk.BooleanVar(value=element["coche"])
+            cases.append((var, element))
+            cadre = tk.Frame(corps, bg=self.PANNEAU_F)
+            cadre.pack(fill="x", pady=3)
+            tk.Checkbutton(
+                cadre, variable=var, bg=self.PANNEAU_F, fg=self.TEXTE_F,
+                activebackground=self.PANNEAU_F, selectcolor="#fffbe8",
+                text="%s   (%s, %d élément(s))"
+                     % (element["libelle"], _taille_lisible(element["taille"]),
+                        len(element["chemins"])),
+                font=self.p_nom_carte, anchor="w",
+                highlightthickness=0, bd=0).pack(fill="x", padx=8, pady=(8, 0))
+            detail = element["note"] or ""
+            apercu = " · ".join(element["chemins"][:3])
+            if len(element["chemins"]) > 3:
+                apercu += " · … (%d de plus)" % (len(element["chemins"]) - 3)
+            tk.Label(cadre, text=(detail + "\n" if detail else "") + apercu,
+                     bg=self.PANNEAU_F, fg=self.DISCRET_F, font=self.p_mini,
+                     anchor="w", justify="left",
+                     wraplength=650).pack(fill="x", padx=34, pady=(0, 8))
+        self._bouton(pied, "Annuler", f.destroy).pack(side="left")
+        self._bouton(pied, "Supprimer ce qui est coché",
+                     lambda: self._desinstaller(f, cases),
+                     accent=True).pack(side="right")
+
+    def _desinstaller(self, fenetre, cases):
+        from tkinter import messagebox
+        choisis = [e for var, e in cases if var.get()]
+        if not choisis:
+            self.statut("alerte", "Rien de coché : rien n'a été supprimé.")
+            return
+        if not messagebox.askyesno(
+                "Tout désinstaller",
+                "Supprimer définitivement %d élément(s) ?\n\n%s\n\n"
+                "Le jeu doit être fermé."
+                % (len(choisis),
+                   "\n".join("• " + e["libelle"] for e in choisis)),
+                parent=fenetre):
+            return
+        resultats, tout = logique.desinstaller_tout(self.jeu, choisis)
+        fenetre.destroy()
+        # « Revenu en anglais » n'est vrai que si la TRADUCTION est partie.
+        # Ne cocher que « les réglages du Hub » et tout supprimer avec succès
+        # ne remet évidemment rien en anglais — et l'annoncer serait refaire,
+        # en plus poli, l'erreur qui a mis un joueur en colère le 26/07.
+        anglais = tout and any(e["cle"] == "traduction" for e in choisis)
+        self._rapport_desinstallation(resultats, tout, anglais)
+
+    def _rapport_desinstallation(self, resultats, tout, anglais=True):
+        f = self._fenetre("Désinstallation", 720, 480)
+        titre = ("Ton jeu est revenu en anglais." if anglais else
+                 "C'est fait." if tout else "Il reste quelque chose.")
+        tk.Label(f, text=titre, bg=self.FOND_F,
+                 fg=VERT if tout else "#9c6410",
+                 font=self.p_gros).pack(anchor="w", padx=24, pady=(20, 4))
+        if anglais:
+            sous = ("Relance le jeu : les textes, les écrans de connexion et "
+                    "les voix sont revenus à l'original. Si un personnage "
+                    "reste en français, c'est un cache d'affichage : il part "
+                    "à la reconnexion.")
+        elif tout:
+            sous = ("Tout ce que tu avais coché est parti. La traduction, "
+                    "elle, n'était pas dans la liste : ton jeu reste en "
+                    "français.")
+        else:
+            sous = ("Ce qui n'a pas pu être retiré est listé ci-dessous, avec "
+                    "la raison. La cause la plus fréquente est le jeu (ou le "
+                    "launcher) resté ouvert.")
+        tk.Label(f, text=sous, bg=self.FOND_F, fg=self.DISCRET_F,
+                 font=self.p_petit, wraplength=660,
+                 justify="left").pack(anchor="w", padx=24, pady=(0, 12))
+
+        def fermer():
+            f.destroy()
+            self._apres_purge()
+        # La croix de la fenêtre doit faire la même chose que le bouton :
+        # sinon le Hub reste sur « Tu es à jour » et sa pastille verte alors
+        # que la traduction vient d'être supprimée.
+        f.protocol("WM_DELETE_WINDOW", fermer)
+        self._bouton(f, "Fermer", fermer, accent=True).pack(side="bottom",
+                                                            pady=14)
+        corps = self._zone_defilante(f, 684, 300)
+        for libelle, ok, message in resultats:
+            couleur, signe = self.PASTILLES["ok" if ok else "souci"]
+            ligne = tk.Frame(corps, bg=self.PANNEAU_F)
+            ligne.pack(fill="x", pady=2)
+            tk.Label(ligne, text=signe, bg=self.PANNEAU_F, fg=couleur,
+                     font=self.p_nom_carte, width=2).pack(side="left",
+                                                          padx=(10, 4))
+            tk.Label(ligne, text="%s — %s" % (libelle, message),
+                     bg=self.PANNEAU_F, fg=self.TEXTE_F, font=self.p_petit,
+                     anchor="w", justify="left",
+                     wraplength=600).pack(side="left", fill="x", pady=8)
+
+    def _apres_purge(self):
+        """Après une désinstallation, le Hub doit se remettre à jour : sinon
+        il continue d'afficher « tu es à jour » sur une traduction absente."""
+        # On relit le disque et on en DÉDUIT l'état, au lieu de forcer
+        # « absente » : une désinstallation partielle (le joueur n'a coché que
+        # les voix) laisse la traduction en place, et lui annoncer qu'elle a
+        # disparu serait faux dans l'autre sens.
+        self.version_locale = (logique.version_installee(self.jeu)
+                               if logique.jeu_valide(self.jeu) else None)
+        if not self.version_dispo:
+            etat = self.etat_trad
+        elif not self.version_locale:
+            etat = "absente"
+        elif logique.mise_a_jour_dispo(self.version_locale,
+                                       self.version_dispo):
+            etat = "maj"
+        else:
+            etat = "ajour"
+        self.appliquer_trad(etat)
+        self.rafraichir_voix()
+        self.rafraichir_addons()
+        self.rafraichir_accueil()
+        self._fil(self._controle_fond)
 
     # ----------------------------------------------------------- CONTRIBUER
     def _construire_contribuer(self):
         t = ("vue_contribuer",)
         c, cx = self.canvas, M["CX"]
-        c.create_text(cx, M["Y_TITRE"], anchor="w", text="Contribuer",
-                      font=self.p_titre, fill=ENCRE, tags=t)
+        self._titre_vue("contribuer", t)
         y = 96
         self.decor.poser(c, "parchemin_lettre", cx, y, tags=t)
         c.create_text(cx + 34, y + 44, anchor="w",
@@ -1346,6 +2231,27 @@ class Hub(tk.Tk):
             tags=t)
         self.boutons_contribuer = (self.btn_envoyer,)
         self.envoi_en_cours = False
+        # Case « envoi automatique » — LA VRAIE case du jeu (UI-CheckBox),
+        # plus un « [x] » en note de bas de page : elle commande un envoi de
+        # données par défaut, elle doit se voir et se cocher (lot 12, pt 9).
+        y_case = y + 220 + M["BTN_M_H"] + 26
+        self.contrib_case = self.decor.poser(c, "case_vide", cx + 30,
+                                             y_case - 13, tags=t)
+        self.contrib_auto = c.create_text(
+            cx + 30 + 34, y_case, anchor="w",
+            text="Envoyer automatiquement ma récolte à chaque ouverture "
+                 "du Hub",
+            font=self.p_corps, fill=ENCRE, tags=t)
+        for item in (self.contrib_case, self.contrib_auto):
+            if item is None:
+                continue
+            c.tag_bind(item, "<Button-1>",
+                       lambda e: self._basculer_envoi_auto())
+            c.tag_bind(item, "<Enter>",
+                       lambda e: c.configure(cursor="hand2"))
+            c.tag_bind(item, "<Leave>",
+                       lambda e: c.configure(cursor=""))
+        self._maj_case_auto()
 
     def rafraichir_contrib(self):
         total, attente = self.stats
@@ -1384,6 +2290,51 @@ class Hub(tk.Tk):
         self.stats = stats
         self.rafraichir_contrib()
         self.rafraichir_accueil()
+
+    # ------------------------------------------------------ envoi automatique
+    def _maj_case_auto(self):
+        if self.contrib_case:
+            self.canvas.itemconfigure(
+                self.contrib_case,
+                image=self.decor.photo(
+                    "case_cochee" if self.cfg.get("envoi_auto", True)
+                    else "case_vide"))
+
+    def _basculer_envoi_auto(self):
+        self.cfg["envoi_auto"] = not self.cfg.get("envoi_auto", True)
+        logique.sauver_config(self.cfg)
+        self._maj_case_auto()
+
+    def envoi_auto_au_lancement(self):
+        if not self.cfg.get("envoi_auto", True) or self.envoi_en_cours:
+            return
+        if not (logique.WEBHOOK_RAPPORTS and logique.jeu_valide(self.jeu)):
+            return
+        self.envoi_en_cours = True
+        self._fil(self._envoi_auto_fond)
+
+    def _envoi_auto_fond(self):
+        envoye = 0
+        try:
+            deja = logique.deja_envoyees()
+            rapport, nombre, empreintes = logique.construire_rapport(
+                self.jeu, deja)
+            if nombre:
+                caches, _ = logique.extraire_caches(self.jeu)
+                logique.envoyer_rapport_discord(rapport, caches)
+                logique.noter_envoyees(self.cfg, empreintes)
+                envoye = nombre
+        except Exception:
+            envoye = -1        # silencieux : on réessaiera au prochain lancement
+        self._sur_canvas(self._fin_envoi_auto, envoye)
+
+    def _fin_envoi_auto(self, envoye):
+        self.envoi_en_cours = False
+        if envoye > 0:
+            self.statut("succes",
+                        "Merci ! %s texte(s) envoyé(s) automatiquement."
+                        % "{:,}".format(envoye).replace(",", " "))
+        self._fil(self._lire_stats)
 
     def envoyer_rapport(self):
         if self.envoi_en_cours:
@@ -1450,7 +2401,7 @@ class Hub(tk.Tk):
                      "- Canal « AscensionFR » : retrouve les francophones "
                      "du serveur en un clic\n"
                      "- Pseudos colorés, onglet dédié, recherche de groupe\n"
-                     "- G.B.G (interface de guilde) rejoint le catalogue\n"
+                     "- AscensionFR-Pêche rejoint le catalogue\n"
                      "- Effets « Utiliser » des objets enfin traduits\n"
                      "- DragonUI : les auras des barres de vie remarchent\n"
                      "\nUn mot de Dan :\n"

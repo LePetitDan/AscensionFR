@@ -16,11 +16,18 @@
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><b>⬇️ TÉLÉCHARGER</b></a>
+  <a href="../../releases/latest"><b>⬇️ TÉLÉCHARGER LE HUB</b></a>
+  &nbsp;·&nbsp;
+  <a href="../../releases/latest/download/AscensionFR_manuel.zip"><b>📁 ZIP SANS PROGRAMME</b></a>
   &nbsp;·&nbsp;
   <a href="https://discord.gg/kFJGDJbeay"><b>💬 Discord</b></a>
   &nbsp;·&nbsp;
   <a href="docs/FAQ.md"><b>❓ FAQ</b></a>
+</p>
+
+<p align="center">
+  <sub>Ton antivirus supprime le Hub ? Prends le <b>zip</b> : rien à exécuter, que des fichiers texte.<br>
+  Le lien est permanent — il pointe toujours sur la dernière version.</sub>
 </p>
 
 <p align="center"><img src="assets/vitrine/separateur.png?v=2" alt="" width="80%"></p>
@@ -47,13 +54,22 @@
 </tr>
 </table>
 
-> 🛡️ Windows affiche « Windows a protégé votre ordinateur » ? C'est le lot des
-> petits projets non signés : **« Informations complémentaires » →
-> « Exécuter quand même »**. Le [code source est public](compagnon/).
+> 🛡️ **Windows ou ton antivirus bloque le Hub ?** Ça arrive : le programme
+> n'est pas signé (une signature coûte plusieurs centaines d'euros par an) et
+> Defender le prend parfois pour un virus. Le [code source est
+> public](compagnon/), tu peux le lire ligne par ligne.
 >
-> 📁 **Tu préfères ne rien exécuter ?** L'installation **manuelle** (un simple
-> zip de fichiers texte, aucun programme) est expliquée pas à pas ici :
-> **[Guide d'installation complet →](docs/INSTALLATION.md)**
+> - Message « Windows a protégé votre ordinateur » : **« Informations
+>   complémentaires » → « Exécuter quand même »**.
+> - Ton antivirus le **supprime** carrément, même en le relançant ? Alors ne
+>   te bats pas avec lui — prends l'autre chemin, il marche aussi bien :
+>
+> ### 📁 [⬇️ Télécharger AscensionFR_manuel.zip](../../releases/latest/download/AscensionFR_manuel.zip)
+>
+> Un simple zip : **que des fichiers texte** (`.lua` / `.xml`), aucun
+> programme, rien ne s'exécute. Tu l'extrais dans le dossier de ton jeu et
+> c'est fini. Tu perds seulement la mise à jour en un clic : tu reviendras
+> chercher le zip à chaque version. **[Le pas à pas complet →](docs/INSTALLATION.md)**
 
 <p align="center"><img src="assets/vitrine/separateur.png?v=2" alt="" width="80%"></p>
 

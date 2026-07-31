@@ -137,6 +137,41 @@ def texte_or(toile, xy, texte, fonte, ancre="mm", remplir=OR_VIF,
 
 
 # --------------------------------------------------------------------------- #
+# La PLAQUE d'infobulle du jeu (lot 12, règle n° 1) : jamais d'encre sur le
+# bois — tout texte posé sur la texture bruitée passe sur cette plaque, comme
+# WoW le fait lui-même. Fond `Tooltips/UI-Tooltip-Background` teinté du bleu
+# nuit des infobulles du jeu, entouré des 8 bords `UI-Tooltip-TL/T/TR/L/R/
+# BL/B/BR` (⚠️ pas l'atlas `UI-Tooltip-Border`, qui est une autre pièce).
+# --------------------------------------------------------------------------- #
+def plaque_infobulle(l, h):
+    fond_tex = texture("Tooltips", "UI-Tooltip-Background.PNG")
+    # La texture est un gris translucide : le jeu la teinte au rendu
+    # (TOOLTIP_DEFAULT_BACKGROUND_COLOR, bleu nuit). On fait pareil.
+    teinte = Image.new("RGBA", fond_tex.size, (18, 18, 38, 255))
+    fond_tex = Image.composite(
+        teinte, fond_tex, Image.new("L", fond_tex.size, 205))
+    toile = Image.new("RGBA", (l, h))
+    for y in range(0, h, fond_tex.height):
+        for x in range(0, l, fond_tex.width):
+            toile.alpha_composite(fond_tex, (x, y))
+    # Un léger dégradé pour ne pas être un aplat mort
+    toile.alpha_composite(degrade_vertical(l, h, (255, 255, 255, 10),
+                                           (0, 0, 0, 40)))
+    b = 8                                  # les bords font 8×8
+    bords = {n: texture("Tooltips", "UI-Tooltip-%s.PNG" % n)
+             for n in ("TL", "T", "TR", "L", "R", "BL", "B", "BR")}
+    toile.alpha_composite(bande(bords["T"], l - 2 * b, False), (b, 0))
+    toile.alpha_composite(bande(bords["B"], l - 2 * b, False), (b, h - b))
+    toile.alpha_composite(bande(bords["L"], h - 2 * b, True), (0, b))
+    toile.alpha_composite(bande(bords["R"], h - 2 * b, True), (l - b, b))
+    toile.alpha_composite(bords["TL"], (0, 0))
+    toile.alpha_composite(bords["TR"], (l - b, 0))
+    toile.alpha_composite(bords["BL"], (0, h - b))
+    toile.alpha_composite(bords["BR"], (l - b, h - b))
+    return toile
+
+
+# --------------------------------------------------------------------------- #
 # Cadre doré (atlas 8 cases) et fonds — recettes éprouvées de la vitrine
 # --------------------------------------------------------------------------- #
 def decouper_bordure():
@@ -384,6 +419,22 @@ def bouton_rouge(nom, l, h, libelle, px=18, survol=True, etat="up",
         sauver(nom + "_survol", clair)
 
 
+def bouton_neutre(nom, l, h, libelle, px=15):
+    """Un bouton SECONDAIRE : la matière du bouton du jeu, désaturée vers la
+    pierre. Arbitrage de Dan (28/07) : le rouge appartient à l'action
+    principale — « Couper les voix » ne doit plus concurrencer « Mettre à
+    jour » à l'œil."""
+    toile = base_bouton(l, h)
+    toile = ImageEnhance.Color(toile).enhance(0.18)
+    toile = ImageEnhance.Brightness(toile).enhance(0.92)
+    fonte = police("FRIZQT__.TTF", px)
+    texte_or(toile, (l // 2, h // 2), libelle, fonte, remplir=BEIGE_VIF,
+             contour=(25, 20, 12, 255))
+    sauver(nom, toile)
+    clair = ImageEnhance.Brightness(toile).enhance(1.16)
+    sauver(nom + "_survol", clair)
+
+
 def fabriquer_boutons():
     L, H = M["BTN_L_W"], M["BTN_L_H"]
     bouton_rouge("btn_lancer", M["BTN_LANCER_W"], M["BTN_LANCER_H"],
@@ -392,14 +443,15 @@ def fabriquer_boutons():
     bouton_rouge("btn_maj", L, H, "Mettre à jour")
     bouton_rouge("btn_reessayer", L, H, "Réessayer")
     bouton_rouge("btn_admin", L, H, "Relancer en administrateur", px=16)
-    bouton_rouge("btn_fait", L, H, "Tu es à jour", survol=False, etat="off",
-                 couleur=VERT_DOUX)
+    # (« btn_fait » et « btn_voix_fait » ne sont plus cuits : un état ne doit
+    # pas ressembler à un bouton — lot 12, point 6. L'état vit désormais dans
+    # le titre du panneau, le badge et la pastille.)
     bouton_rouge("btn_voix", L, H, "Installer les voix françaises", px=17)
-    bouton_rouge("btn_voix_fait", L, H, "Voix installées", survol=False,
-                 etat="off", couleur=VERT_DOUX)
     # Bascule « couper / remettre » (demande d'un joueur, 23/07) : les
     # voix sont des fichiers, la bascule renomme le dossier Sound.
-    bouton_rouge("btn_voix_couper", 220, 36, "Couper les voix", px=15)
+    # « Couper » est NEUTRE (voir bouton_neutre) ; « Remettre » reste rouge :
+    # quand les voix sont coupées, le remettre EST l'action principale.
+    bouton_neutre("btn_voix_couper", 220, 36, "Couper les voix", px=15)
     bouton_rouge("btn_voix_remettre", 220, 36, "Remettre les voix", px=15)
     bouton_rouge("btn_envoyer", M["BTN_M_W"], M["BTN_M_H"],
                  "Envoyer mon rapport", px=17)
@@ -411,6 +463,9 @@ def fabriquer_boutons():
     lc, hc = M["BTN_C_W"], M["BTN_C_H"]
     bouton_rouge("btn_carte_installer", lc, hc, "Installer", px=14)
     bouton_rouge("btn_carte_maj", lc, hc, "Mettre à jour", px=14)
+    # Il existait sur le disque sans recette (fait à part, préservé par la
+    # fusion du manifeste) : maintenant il se régénère comme les autres.
+    bouton_rouge("btn_carte_desinstaller", lc, hc, "Désinstaller", px=14)
     bouton_rouge("btn_carte_installe", lc, hc, "Installé", px=14,
                  survol=False, etat="off", couleur=VERT_DOUX)
     bouton_rouge("btn_carte_bientot", lc, hc, "Bientôt…", px=14,
@@ -553,6 +608,132 @@ def fabriquer_barres():
     sauver("barre_bande", bande)
 
 
+# --------------------------------------------------------------------------- #
+# Lot 12 — plaques, pastilles, titres, case à cocher, filet, défilement
+# --------------------------------------------------------------------------- #
+def fabriquer_plaques():
+    """Les plaques d'infobulle sous les textes posés sur le bois (règle
+    n° 1 de la passe UX) : l'audit du 26/07 a mesuré 1,4 à 3,2:1 pour toute
+    encre posée directement sur la texture, 6,7 à 10 sur panneau."""
+    sauver("plaque_verdict", plaque_infobulle(M["CW"], M["PLAQUE_VERDICT_H"]))
+    sauver("plaque_outils", plaque_infobulle(M["CW"], M["PLAQUE_OUTILS_H"]))
+    sauver("plaque_note", plaque_infobulle(M["CW"], M["PLAQUE_NOTE_H"]))
+
+
+def fabriquer_pastilles():
+    """Les billes d'état du jeu (COMMON/Indicator-*) : la pastille double le
+    verdict — et comme les quatre ont la même forme, le TEXTE porte toujours
+    le sens (« la forme avant la couleur » : ici, la forme est la phrase)."""
+    for nom, fichier in (("pastille_verte", "Indicator-Green.PNG"),
+                         ("pastille_jaune", "Indicator-Yellow.PNG"),
+                         ("pastille_rouge", "Indicator-Red.PNG"),
+                         ("pastille_grise", "Indicator-Gray.PNG")):
+        im = texture("COMMON", fichier)
+        im = im.crop(im.getbbox())
+        sauver(nom, im.resize((22, 22), Image.LANCZOS))
+
+
+TITRES_VUES = (
+    ("accueil", "Accueil"),
+    ("traduction", "Traduction"),
+    ("voix", "Voix françaises"),
+    ("addons", "Addons"),
+    ("contribuer", "Contribuer"),
+)
+
+
+def fabriquer_titres():
+    """Titres de vue : or vif + contour NOIR, le traitement du jeu lui-même
+    (arbitrage de Dan du 28/07 — pas de plaque sous les titres, elle
+    recouvrait le fronton gravé). En encre sur le bois ils mesuraient
+    3,2:1 ; l'or vif contouré passe au-dessus de 12:1."""
+    fonte = police("MORPHEUS.TTF", 30)
+    ep = 2
+    for vue, libelle in TITRES_VUES:
+        x0, y0, x1, y1 = fonte.getbbox(libelle, stroke_width=ep)
+        toile = Image.new("RGBA", (x1 - x0 + 6, y1 - y0 + 6))
+        d = ImageDraw.Draw(toile)
+        # Une ombre portée douce pour décoller du bois, puis l'or contouré.
+        d.text((3 - x0 + 1, 3 - y0 + 2), libelle, font=fonte,
+               fill=(0, 0, 0, 130), stroke_width=ep,
+               stroke_fill=(0, 0, 0, 130))
+        d.text((3 - x0, 3 - y0), libelle, font=fonte, fill=OR_VIF,
+               stroke_width=ep, stroke_fill=(0, 0, 0, 255))
+        sauver("titre_" + vue, toile)
+
+
+SOUSTITRES = (
+    ("soustitre_voix",
+     "Les cinématiques et les personnages parlent français — les 14 442 "
+     "répliques d'époque, retrouvées et remises en place."),
+    ("soustitre_addons",
+     "Traduits à 100 %, entretenus et distribués par AscensionFR — toute "
+     "la chaîne est de chez nous."),
+)
+
+
+def fabriquer_soustitres():
+    """Les sous-titres de vue posés sur le BOIS : en encre ils mesuraient
+    ~3:1. Ils sont statiques, donc cuits — beige vif + contour sombre, le
+    traitement que le jeu donne à ses textes sur texture."""
+    fonte = police("FRIZQT__.TTF", 15)
+    interligne = 21
+    for nom, texte in SOUSTITRES:
+        mots, lignes, courante = texte.split(), [], ""
+        for mot in mots:
+            essai = (courante + " " + mot).strip()
+            if fonte.getlength(essai) <= M["CW"] - 6:
+                courante = essai
+            else:
+                lignes.append(courante)
+                courante = mot
+        lignes.append(courante)
+        h = 6 + interligne * len(lignes)
+        toile = Image.new("RGBA", (M["CW"], h))
+        d = ImageDraw.Draw(toile)
+        for i, ligne in enumerate(lignes):
+            d.text((3, 3 + i * interligne), ligne, font=fonte,
+                   fill=BEIGE_VIF, stroke_width=2,
+                   stroke_fill=(30, 18, 6, 255))
+        sauver(nom, toile)
+
+
+def fabriquer_cases():
+    """La vraie case à cocher du jeu (Buttons/UI-CheckBox-Up + -Check) pour
+    « envoi automatique » : une décision qui commande un envoi de données ne
+    doit pas ressembler à une note de bas de page."""
+    cote = 26
+    vide = texture("Buttons", "UI-CheckBox-Up.PNG")
+    sauver("case_vide", vide.resize((cote, cote), Image.LANCZOS))
+    cochee = vide.copy()
+    cochee.alpha_composite(texture("Buttons", "UI-CheckBox-Check.PNG"))
+    sauver("case_cochee", cochee.resize((cote, cote), Image.LANCZOS))
+
+
+def fabriquer_filet():
+    """Le filet séparateur des infobulles (COMMON/UI-TooltipDivider), sous
+    le titre des Dernières nouvelles."""
+    im = texture("COMMON", "UI-TooltipDivider.PNG")
+    sauver("filet_nouvelles", im.resize((M["CW"] - 48, 8), Image.LANCZOS))
+
+
+def fabriquer_defilement():
+    """Flèches et pouce du défilement du catalogue (Buttons/UI-ScrollBar-*) :
+    le plafond de `catalogue[:6]` saute — un 7ᵉ addon se défile au lieu de
+    disparaître sans un mot."""
+    for nom, fichier in (
+            ("fleche_haut", "UI-ScrollBar-ScrollUpButton-Up.PNG"),
+            ("fleche_haut_off", "UI-ScrollBar-ScrollUpButton-Disabled.PNG"),
+            ("fleche_bas", "UI-ScrollBar-ScrollDownButton-Up.PNG"),
+            ("fleche_bas_off", "UI-ScrollBar-ScrollDownButton-Disabled.PNG")):
+        im = texture("Buttons", fichier)
+        im = im.crop(im.getbbox())
+        sauver(nom, im.resize((22, 22), Image.LANCZOS))
+    knob = texture("Buttons", "UI-ScrollBar-Knob.PNG")
+    knob = knob.crop(knob.getbbox())
+    sauver("pouce_defilement", knob.resize((18, 24), Image.LANCZOS))
+
+
 # Barre d'état : fond crème OPAQUE (retouche de Dan du 23/07 — le voile
 # translucide se noyait dans le parchemin). La tonalité vit dans le liseré,
 # la pastille et la couleur du texte, jamais dans le fond.
@@ -639,10 +820,30 @@ def main():
     fabriquer_badges()
     fabriquer_barres()
     fabriquer_etats()
+    fabriquer_plaques()
+    fabriquer_pastilles()
+    fabriquer_titres()
+    fabriquer_soustitres()
+    fabriquer_cases()
+    fabriquer_filet()
+    fabriquer_defilement()
     fabriquer_icones_cartes()
     fabriquer_boutons_lien()
-    with open(os.path.join(SORTIE, "decor_hub.json"), "w",
-              encoding="utf-8") as f:
+    # FUSION PRÉSERVANTE (28/07/2026). L'ancien manifeste peut porter des
+    # décors faits À PART (carte_ic_ascensionfr_peche, carte_ic_gbg n'ont
+    # aucune recette ici) : réécrire le manifeste de zéro les faisait
+    # disparaître — et une icône hors manifeste n'est plus posée du tout.
+    # On garde donc toute entrée ancienne dont le PNG existe encore.
+    chemin_manifeste = os.path.join(SORTIE, "decor_hub.json")
+    if os.path.exists(chemin_manifeste):
+        with open(chemin_manifeste, encoding="utf-8") as f:
+            ancien = json.load(f)
+        for nom, fiche in ancien.items():
+            if nom not in MANIFESTE and os.path.isfile(
+                    os.path.join(SORTIE, nom + ".png")):
+                MANIFESTE[nom] = fiche
+                print("  %-26s conservé de l'ancien manifeste" % nom)
+    with open(chemin_manifeste, "w", encoding="utf-8") as f:
         json.dump(MANIFESTE, f, ensure_ascii=False, indent=1)
     print("Décors du Hub écrits dans", SORTIE)
 
