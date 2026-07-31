@@ -41,6 +41,7 @@ from tkinter import filedialog
 from PIL import Image, ImageTk
 
 import compagnon as logique
+import plateforme                     # couche d'abstraction Windows/Linux
 
 # --------------------------------------------------------------------------- #
 # Plan de la fenêtre — la seule source des cotes, partagée avec
@@ -793,22 +794,18 @@ class Hub(tk.Tk):
         for base in candidats:
             launcher = os.path.join(base, "Ascension Launcher.exe")
             if os.path.isfile(launcher):
-                try:
-                    os.startfile(launcher)
+                # plateforme.lancer : os.startfile sous Windows (inchangé),
+                # runner Proton/Wine sous Linux. Renvoie True si tenté.
+                if plateforme.lancer(launcher, plateforme.prefixe_de(base)):
                     self.statut("succes", "Le launcher Ascension se lance. "
                                           "Bon voyage !")
                     return
-                except OSError:
-                    pass
         exe = os.path.join(self.jeu or "", "Ascension.exe")
         if self.jeu and os.path.isfile(exe):
-            try:
-                os.startfile(exe)
+            if plateforme.lancer(exe, plateforme.prefixe_de(self.jeu)):
                 self.statut("succes", "Launcher introuvable — le jeu se "
                                       "lance directement.")
                 return
-            except OSError:
-                pass
         self.statut("erreur", "Impossible de trouver le launcher ou le jeu. "
                               "Vérifie le dossier dans l'onglet Traduction.")
 

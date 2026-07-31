@@ -1,0 +1,14 @@
+# Dépendances Python du Compagnon / Hub AscensionFR.
+# Sous Windows, l'exe de release embarque déjà tout (PyInstaller). Ce fichier
+# sert surtout à lancer depuis les sources — indispensable sous Linux, où l'on
+# exécute « python compagnon_hub.py » plutôt qu'un .exe figé.
+#
+# Prérequis système Linux (hors pip) : le module tkinter n'est pas fourni par
+# pip. Sur Debian/Ubuntu/Pop!_OS :  sudo apt install python3-tk
+#   (Fedora : sudo dnf install python3-tkinter ; Arch : pacman -S tk)
+
+customtkinter>=5.2
+Pillow>=9.0
+lupa>=2.0
+certifi>=2023.0
+psutil>=5.9

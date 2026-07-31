@@ -37,6 +37,8 @@ import zipfile
 
 import customtkinter as ctk
 
+import plateforme                     # couche d'abstraction Windows/Linux
+
 # parser_wdb (lecture des caches WDB du client) vit dans traduction\outils et
 # est embarqué tel quel dans l'exe (voir AscensionFR_Compagnon.spec). En
 # développement, on va le chercher dans le dépôt. Sans lui, le rapport part
@@ -112,7 +114,8 @@ VERT = "#2fb46a"
 ORANGE = "#e8a33d"
 ROUGE = "#e05252"
 
-CONFIG_DIR = os.path.join(os.environ.get("APPDATA", "."), "AscensionFR")
+# Dossier de config selon l'OS (%APPDATA% sous Windows, ~/.config sous Linux).
+CONFIG_DIR = plateforme.dossier_config("AscensionFR")
 CONFIG = os.path.join(CONFIG_DIR, "compagnon.json")
 
 
@@ -291,6 +294,10 @@ def _pistes_launcher():
     mais ratait D:\\Jeux\\Ascension\\resources\\… — l'installation la plus
     courante."""
     pistes = []
+    # 0. Linux (Wine/Proton) : ni %APPDATA% ni registre visibles depuis Python
+    #    natif — on interroge Faugus/Lutris/Steam et on balaie les prefixes.
+    #    No-op (liste vide) sous Windows, où les passes 1 et 2 font foi.
+    pistes.extend(plateforme.pistes_jeu_linux())
     # 1. La configuration du launcher (Electron : %APPDATA%\Ascension Launcher)
     for base in (os.environ.get("APPDATA"), os.environ.get("LOCALAPPDATA")):
         if not base:
