@@ -482,7 +482,15 @@ def installer_addon_zip(chemin_zip, jeu, dossier):
 
 def _candidats_registre():
     """Emplacements du launcher Ascension notés dans le registre Windows
-    (clés de désinstallation). LECTURE seule, jamais d'écriture."""
+    (clés de désinstallation). LECTURE seule, jamais d'écriture.
+
+    Hors Windows il n'y a pas de registre : on rend une liste vide au lieu de
+    laisser `import winreg` échouer. Sans ce garde-fou, « Lancer le jeu »
+    plante sous Linux avant même d'atteindre plateforme.lancer — c'est le
+    seul appel Windows du Hub qui n'était pas déjà protégé (les polices, le
+    DPI et la relance admin le sont par try/except)."""
+    if not plateforme.EST_WINDOWS:
+        return []
     import winreg
     bases = []
     coins = ((winreg.HKEY_CURRENT_USER,
@@ -1881,7 +1889,18 @@ class Hub(tk.Tk):
         y = self.winfo_rooty() + max(20, (M["H"] - hauteur) // 2)
         f.geometry("%dx%d+%d+%d" % (largeur, hauteur, x, y))
         f.transient(self)
-        f.grab_set()
+        # grab_set() exige une fenêtre déjà affichée. Sous Windows elle l'est
+        # dès sa création ; sous X11 le gestionnaire de fenêtres la mappe un
+        # instant plus tard, et l'appel échoue alors sur « grab failed: window
+        # not viewable » — l'exception partant AVANT que le contenu soit
+        # construit, la fenêtre restait vide. On attend donc l'affichage.
+        # Et le grab n'est pas vital : sans lui la fenêtre s'utilise
+        # normalement, elle n'est simplement plus modale.
+        try:
+            f.wait_visibility()
+            f.grab_set()
+        except tk.TclError:
+            pass
         return f
 
     def _zone_defilante(self, parent, largeur, hauteur):
