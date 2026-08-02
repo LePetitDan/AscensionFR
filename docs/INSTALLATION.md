@@ -80,9 +80,64 @@ texte que tu peux ouvrir dans le Bloc-notes et lire. **Aucun programme, aucun
   [Contribuer](CONTRIBUER.md)) — désactivable dans l'onglet Contribuer.
 - **Un catalogue d'addons** français, installés et mis à jour d'un bouton.
 
+## 🐧 Sous Linux
+
+Le Hub existe en version Linux depuis le 02/08/2026 :
+**[⬇ Télécharger `AscensionFR_Hub-linux-x86_64`](../../../releases/download/v3.4.1/AscensionFR_Hub-linux-x86_64)**
+(37 Mo, 64 bits).
+
+1. Télécharge le fichier.
+2. Rends-le exécutable : clic droit → Propriétés → Permissions → « Autoriser
+   l'exécution », ou en terminal `chmod +x AscensionFR_Hub-linux-x86_64`
+3. Double-clique dessus.
+
+C'est le même programme que sous Windows, avec les mêmes traductions.
+
+### 🛑 Trois choses à savoir avant de télécharger
+
+**1. Il n'y a PAS de mise à jour automatique sous Linux.**
+Sous Windows, le Hub se met à jour tout seul. Sous Linux, **non** : le
+mécanisme de remplacement est écrit pour Windows et n'a pas encore
+d'équivalent. Ce fichier ne changera jamais tout seul — tu resteras sur cette
+version tant que tu ne reviendras pas ici.
+
+Pour **savoir** qu'une nouvelle version existe, deux moyens :
+
+- le canal `#annonces` du [Discord](https://discord.gg/kFJGDJbeay), où chaque
+  version est annoncée ;
+- ou **Watch → Custom → Releases** en haut de la page du projet : GitHub te
+  préviendra par courriel à chaque publication.
+
+**2. Il faut une distribution récente** — glibc **2.35** ou plus.
+
+| ça marche | ça ne marche pas |
+|---|---|
+| Ubuntu 22.04 LTS et plus récent | Ubuntu 20.04 LTS (glibc 2.31) |
+| Debian 12 « bookworm » et plus récent | Debian 11 « bullseye » (glibc 2.31) |
+| Fedora 36+, Arch, Manjaro | toute distribution d'avant 2022 |
+
+Pour vérifier : `ldd --version` dans un terminal. Si le nombre est inférieur à
+2.35, le programme ne démarrera pas — inutile de télécharger 37 Mo.
+
+**3. L'affichage est plus sobre.** Les polices de World of Warcraft (Morpheus,
+Friz Quadrata) ne se chargent pas sous Linux : le mécanisme qui les installe
+le temps d'une session est une fonction Windows. Les titres s'affichent donc
+dans une police classique au lieu de celle du jeu. Tout le reste — images,
+boutons, couleurs — est identique. C'est moins joli, ça marche pareil.
+
+> 🎮 **Le jeu, lui, tourne sous Proton/Wine.** Ce paragraphe ne parle que du
+> Hub, qui est un programme Linux natif. La traduction elle-même, elle, est
+> faite de fichiers `.lua` : elle marche exactement pareil quel que soit ton
+> système. **L'installation à la main ci-dessus fonctionne sous Linux sans
+> aucune réserve** — c'est même la voie la plus simple.
+
+---
+
 ## 🔄 Mettre à jour
 
 - **Hub** : il te prévient et tout se fait en un clic.
+- ⚠️ **Sous Linux, le Hub ne se met PAS à jour tout seul** — voir la section
+  Linux ci-dessus.
 - **À la main** : extrais le nouveau zip par-dessus (dis « oui » pour
   remplacer), puis `/reload` en jeu ou reconnecte-toi. Tes réglages sont
   conservés.

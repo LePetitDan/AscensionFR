@@ -1,0 +1,37 @@
+[
+ {
+  "id": "ascensionfr_confort",
+  "nom": "AscensionFR-Confort",
+  "desc": "Quêtes accélérées, butin instantané, marchand malin — en français.",
+  "dossier": "AscensionFR-Confort",
+  "fr": true,
+  "url": "https://github.com/LePetitDan/AscensionFR-Confort/releases/latest/download/AscensionFR-Confort.zip"
+ },
+ {
+  "id": "ascensionfr_equipement",
+  "nom": "AscensionFR-Équipement",
+  "desc": "Verdict d'objet en % dans l'infobulle, flèches vertes dans les sacs.",
+  "dossier": "AscensionFR-Equipement",
+  "fr": true,
+  "url": "https://github.com/LePetitDan/AscensionFR-Equipement/releases/latest/download/AscensionFR-Equipement.zip"
+ },
+ {
+  "id": "ascensionfr_peche",
+  "nom": "AscensionFR-Pêche",
+  "desc": "Assistant de pêche : une touche, appâts, compétence et compteur de session.",
+  "dossier": "AscensionFR-Peche",
+  "fr": true,
+  "url": "https://github.com/LePetitDan/AscensionFR-Peche/releases/latest/download/AscensionFR-Peche.zip"
+ },
+ {
+  "id": "dragonui",
+  "nom": "DragonUI",
+  "desc": "L'interface façon Dragonflight — traduite en direct par AscensionFR.",
+  "dossier": "DragonUI",
+  "dossiers": ["DragonUI_Options"],
+  "fr": false,
+  "traduit_par_nous": true,
+  "auteurs": "PentSec, NeticSoul (licence MIT)",
+  "url": "https://github.com/PentSec/DragonUI/releases/latest/download/DragonUI.zip"
+ }
+]

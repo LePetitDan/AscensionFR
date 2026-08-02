@@ -20,6 +20,7 @@ JEU — jamais de pseudo, de conversation ni de fichier personnel.
 """
 import ctypes
 import gzip
+import hashlib
 import json
 import os
 import platform
@@ -63,7 +64,7 @@ PAGE_RELEASES = "https://github.com/" + DEPOT + "/releases"
 # infinie du 25-28/07 : le Hub comparait le .toc au tag et proposait la mise à
 # jour pour toujours. verifier_tout.py et publier_github.py refusent tout
 # écart, sans option pour passer outre.
-VERSION_COMPAGNON = "3.4.0"
+VERSION_COMPAGNON = "3.4.1"
 
 # Salon des rapports : URL du webhook Discord (fournie par le mainteneur).
 # VIDE -> le bouton « Envoyer » n'existe pas, seul « Copier » reste (aucun
@@ -522,25 +523,121 @@ def mise_a_jour_dispo(installee, derniere):
     return vd > vi
 
 
-def telecharger_fichier(url, progres=None, suffixe=".zip"):
+def reference_asset(nom_asset):
+    """(sha256, taille) ANNONCÉS PAR GITHUB pour cet asset, ou (None, None).
+
+    ⚠️ C'est le cœur du contrôle d'intégrité, et le piège qu'il évite :
+    une empreinte calculée sur le fichier téléchargé, comparée à une
+    empreinte calculée sur le même fichier, ne prouve rien — elle se valide
+    toute seule. La référence doit venir d'AILLEURS que du fichier.
+
+    Elle vient d'ici : l'API des release assets expose un champ « digest »
+    (vérifié sur notre release du 28/07 —
+    « sha256:621401050e340da8bf3032a251e19e55… », qui correspond bien à
+    l'empreinte réelle de l'exe publié) et un champ « size ». Ce sont des
+    MÉTADONNÉES, calculées par GitHub à la réception, servies par une autre
+    requête que celle du binaire.
+    """
+    try:
+        req = urllib.request.Request(API_RELEASE, headers=UA)
+        with urllib.request.urlopen(req, timeout=20,
+                                    context=CONTEXTE_SSL) as r:
+            infos = json.load(r)
+        for asset in infos.get("assets", []):
+            if asset.get("name") == nom_asset:
+                digest = (asset.get("digest") or "")
+                sha = digest.split("sha256:")[-1] if "sha256:" in digest \
+                    else None
+                return sha, asset.get("size") or None
+    except Exception:
+        # Pas de référence disponible : on ne bloque pas la mise à jour pour
+        # autant, les contrôles de forme ci-dessous restent actifs.
+        pass
+    return None, None
+
+
+def telecharger_fichier(url, progres=None, suffixe=".zip",
+                        sha256_attendu=None, taille_attendue=None):
     """Télécharge un fichier de release dans un fichier temporaire ; rend le
-    chemin. progres(fait, total) est appelé au fil de l'eau."""
+    chemin. progres(fait, total) est appelé au fil de l'eau.
+
+    CONTRÔLE D'INTÉGRITÉ (programme 9, 01/08/2026). Jusqu'ici : aucun. Une
+    coupure réseau produisait un exe tronqué, qu'on installait, qui ne
+    démarrait pas — et que le Hub reproposait à chaque ouverture. C'est un
+    candidat sérieux pour la « mise à jour qui ne tient jamais » signalée le
+    27/07.
+
+    Trois contrôles, du moins cher au plus sûr :
+      1. l'en-tête « MZ » pour un .exe — attrape un fichier vide et surtout
+         une page d'erreur HTML servie à la place du binaire ;
+      2. la taille annoncée par l'API — attrape le téléchargement tronqué ;
+      3. l'empreinte SHA-256 annoncée par l'API — attrape le reste.
+
+    L'empreinte est calculée AU FIL DE L'EAU : on ne relit pas 38 Mo une
+    seconde fois. En cas d'échec, le fichier temporaire est supprimé (il ne
+    doit pas rester un exe corrompu qui traîne) et une exception au message
+    LISIBLE est levée : l'appelant l'affiche au joueur et lui propose la
+    page de téléchargement. Refuser en silence recréerait la boucle qu'on
+    essaie de casser.
+    """
     req = urllib.request.Request(url, headers=UA)
     fd, chemin = tempfile.mkstemp(suffix=suffixe, prefix="AscensionFR_")
-    with urllib.request.urlopen(req, timeout=60,
-                                context=CONTEXTE_SSL) as r, \
-            os.fdopen(fd, "wb") as f:
-        total = int(r.headers.get("Content-Length") or 0)
-        fait = 0
-        while True:
-            bloc = r.read(65536)
-            if not bloc:
-                break
-            f.write(bloc)
-            fait += len(bloc)
-            if progres:
-                progres(fait, total)
+    empreinte = hashlib.sha256()
+    debut = b""
+    try:
+        with urllib.request.urlopen(req, timeout=60,
+                                    context=CONTEXTE_SSL) as r, \
+                os.fdopen(fd, "wb") as f:
+            total = int(r.headers.get("Content-Length") or 0)
+            fait = 0
+            while True:
+                bloc = r.read(65536)
+                if not bloc:
+                    break
+                if not debut:
+                    debut = bloc[:2]
+                f.write(bloc)
+                empreinte.update(bloc)
+                fait += len(bloc)
+                if progres:
+                    progres(fait, total)
+        verifier_telechargement(chemin, suffixe, debut, empreinte.hexdigest(),
+                                sha256_attendu, taille_attendue)
+    except BaseException:
+        try:
+            os.remove(chemin)
+        except OSError:
+            pass
+        raise
     return chemin
+
+
+def verifier_telechargement(chemin, suffixe, debut, empreinte,
+                            sha256_attendu, taille_attendue):
+    """Lève une exception au message lisible si le fichier n'est pas celui
+    qu'on attendait. Séparée pour être éprouvable sans réseau."""
+    taille = os.path.getsize(chemin)
+    if taille == 0:
+        raise ValueError(
+            "le téléchargement est vide (0 octet). La connexion a "
+            "probablement été interrompue — réessaie dans un instant.")
+    if suffixe == ".exe" and debut[:2] != b"MZ":
+        raise ValueError(
+            "le fichier téléchargé n'est pas un programme Windows. Le "
+            "téléchargement a été interrompu, ou un équipement réseau a "
+            "renvoyé une page d'erreur à la place — réessaie dans un "
+            "instant.")
+    if taille_attendue and taille != taille_attendue:
+        raise ValueError(
+            "le téléchargement est incomplet (%.1f Mo reçus sur %.1f Mo "
+            "attendus). Réessaie dans un instant."
+            % (taille / 1e6, taille_attendue / 1e6))
+    if sha256_attendu and empreinte.lower() != sha256_attendu.lower():
+        raise ValueError(
+            "le fichier téléchargé est abîmé (son empreinte ne correspond "
+            "pas à celle annoncée par GitHub). Réessaie dans un instant ; "
+            "si ça recommence, télécharge-le à la main depuis la page des "
+            "versions.")
 
 
 def installer_zip(chemin_zip, jeu):
@@ -553,27 +650,119 @@ def installer_zip(chemin_zip, jeu):
 def lancer_remplacement(nouveau, cible):
     """Auto-mise à jour du Compagnon : un programme ne peut pas s'écraser
     lui-même pendant qu'il tourne. On confie donc l'échange à un minuscule
-    script relais qui attend la fermeture de l'appli (tant que l'exe est
-    verrouillé, « del » échoue), remplace l'ancien exe par le nouveau,
-    relance, puis s'efface lui-même."""
+    script relais.
+
+    ⚠️ CE QUE FAISAIT L'ANCIEN RELAIS, et pourquoi il a été réécrit
+    (programme 9, 01/08/2026). Il se servait de « del » comme test de
+    verrou : tant que l'exe tournait, la suppression échouait ; dès qu'elle
+    réussissait, il déplaçait le neuf à la place. Deux défauts, et le second
+    est grave :
+
+      - entre le « del » et le « move », **il n'existait aucun Compagnon sur
+        la machine** ;
+      - le code de retour du « move » n'était pas testé, le lancement ne
+        vérifiait pas que la cible existait, et le relais s'effaçait
+        lui-même — donc un « move » raté (antivirus tenant le fichier neuf,
+        disque plein, droits) laissait le joueur **sans Compagnon et sans la
+        moindre trace**.
+
+    CE QUI REND LE NOUVEAU RELAIS SÛR, et c'est une mesure, pas une
+    intuition : **Windows autorise à RENOMMER un exécutable en cours**
+    (il interdit seulement de le supprimer). Vérifié sur un vrai processus :
+    « del » échoue, « rename » réussit. On met donc l'ancien DE CÔTÉ au lieu
+    de le supprimer, ce qui marche même si l'appli n'est pas encore fermée,
+    et il reste récupérable à tout instant.
+
+    Conséquence heureuse : **plus besoin de test de verrou du tout.**
+    Supprimer le « .ancien » ne réussit que lorsque l'ancien processus a
+    vraiment rendu la main — l'attente et le nettoyage sont la même
+    opération. (Les deux tests non destructifs envisagés ont d'ailleurs été
+    éprouvés et écartés : « move » d'un fichier vers lui-même échoue dans
+    les DEUX états, et l'ouverture en ajout « >> » aussi.)
+
+    Chemin d'échec : on remet l'ancien en place, on le relance, et on écrit
+    un journal à côté du Compagnon. Le relais ne s'efface QUE s'il a réussi.
+    """
+    ancien = cible + ".ancien"
+    journal = os.path.join(os.path.dirname(cible) or ".",
+                           "AscensionFR_maj_echec.log")
     fd, bat = tempfile.mkstemp(suffix=".bat", prefix="AscensionFR_maj_")
+    # ⚠️ LES CHEMINS PASSENT PAR L'ENVIRONNEMENT, PAS PAR LE TEXTE DU .BAT.
+    # Un .bat est relu par cmd.exe dans la page de code OEM (cp850 en
+    # France), alors que « mbcs » écrit en ANSI (cp1252) : un « é » écrit
+    # d'un côté n'est pas celui qu'on relit de l'autre. Le banc l'a montré —
+    # le scénario « Dossier de Jérôme » échouait, et en SILENCE, faute de
+    # pouvoir même écrire son journal. C'était déjà vrai de l'ancien relais.
+    # En passant par l'environnement, cmd.exe reçoit les chemins en natif et
+    # le .bat lui-même reste PUREMENT ASCII : plus de page de code du tout.
+    environnement = dict(os.environ)
+    environnement["AFR_CIBLE"] = cible
+    environnement["AFR_NOUVEAU"] = nouveau
+    environnement["AFR_ANCIEN"] = ancien
+    environnement["AFR_JOURNAL"] = journal
     contenu = (
         "@echo off\r\n"
+        "setlocal\r\n"
+        "set \"CIBLE=%%AFR_CIBLE%%\"\r\n"
+        "set \"NOUVEAU=%%AFR_NOUVEAU%%\"\r\n"
+        "set \"ANCIEN=%%AFR_ANCIEN%%\"\r\n"
+        "set \"JOURNAL=%%AFR_JOURNAL%%\"\r\n"
+        "\r\n"
+        "rem -- 1. mettre l'ancien DE COTE (jamais le supprimer) -----------\r\n"
+        "if exist \"%%ANCIEN%%\" del \"%%ANCIEN%%\" >nul 2>&1\r\n"
+        "move /y \"%%CIBLE%%\" \"%%ANCIEN%%\" >nul 2>&1\r\n"
+        "if errorlevel 1 goto pas_touche\r\n"
+        "\r\n"
+        "rem -- 2. mettre le neuf en place --------------------------------\r\n"
+        "move /y \"%%NOUVEAU%%\" \"%%CIBLE%%\" >nul 2>&1\r\n"
+        "if errorlevel 1 goto retour_arriere\r\n"
+        "if not exist \"%%CIBLE%%\" goto retour_arriere\r\n"
+        "\r\n"
+        "rem -- 3. attendre que l'ancien processus rende la main. Supprimer\r\n"
+        "rem       le .ancien n'y arrive QUE la : l'attente et le nettoyage\r\n"
+        "rem       sont la meme operation, aucun test de verrou destructif.\r\n"
+        "set /a N=0\r\n"
         ":attente\r\n"
+        "set /a N+=1\r\n"
+        "del \"%%ANCIEN%%\" >nul 2>&1\r\n"
+        "if not exist \"%%ANCIEN%%\" goto pret\r\n"
+        "if %%N%% GEQ 30 goto pret\r\n"
         "timeout /t 1 /nobreak >nul\r\n"
-        "del \"%s\" 2>nul\r\n"
-        "if exist \"%s\" goto attente\r\n"
-        "move /y \"%s\" \"%s\" >nul\r\n"
-        # Respiration : l'antivirus inspecte l'exe tout juste écrit ; relancer
-        # dans la même seconde peut échouer (« Failed to load Python DLL »).
+        "goto attente\r\n"
+        "\r\n"
+        ":pret\r\n"
+        "rem -- 4. respiration : l'antivirus inspecte l'exe tout juste ecrit.\r\n"
+        "rem       Conservee telle quelle (programme 9 : on ne change pas\r\n"
+        "rem       deux choses a la fois).\r\n"
         "timeout /t 4 /nobreak >nul\r\n"
-        "start \"\" \"%s\"\r\n"
-        "del \"%%~f0\"\r\n" % (cible, cible, nouveau, cible, cible))
-    # mbcs : l'encodage des .bat sous Windows (chemins accentués compris).
-    with os.fdopen(fd, "w", encoding="mbcs", errors="replace") as f:
+        "start \"\" \"%%CIBLE%%\"\r\n"
+        "del \"%%~f0\"\r\n"
+        "exit /b 0\r\n"
+        "\r\n"
+        ":retour_arriere\r\n"
+        "move /y \"%%ANCIEN%%\" \"%%CIBLE%%\" >nul 2>&1\r\n"
+        "echo [%%DATE%% %%TIME%%] Mise a jour impossible : le nouveau fichier"
+        " n'a pas pu remplacer l'ancien. L'ancien Compagnon a ete remis en"
+        " place. >> \"%%JOURNAL%%\"\r\n"
+        "goto relancer_ancien\r\n"
+        "\r\n"
+        ":pas_touche\r\n"
+        "echo [%%DATE%% %%TIME%%] Mise a jour impossible : l'ancien Compagnon"
+        " n'a pas pu etre mis de cote. Rien n'a ete modifie."
+        " >> \"%%JOURNAL%%\"\r\n"
+        "\r\n"
+        ":relancer_ancien\r\n"
+        "if exist \"%%CIBLE%%\" start \"\" \"%%CIBLE%%\"\r\n"
+        "exit /b 1\r\n") % {}
+    # Le contenu est désormais 100 % ASCII (les chemins sont dans
+    # l'environnement) : « ascii » plutôt que « mbcs », et l'encodage ne peut
+    # plus mentir en silence — une erreur ici serait un vrai plantage, pas un
+    # caractère remplacé par « ? ».
+    with os.fdopen(fd, "w", encoding="ascii") as f:
         f.write(contenu)
-    subprocess.Popen(["cmd", "/c", bat],
+    subprocess.Popen(["cmd", "/c", bat], env=environnement,
                      creationflags=0x08000000)      # CREATE_NO_WINDOW
+    return bat
 
 
 # --------------------------------------------------------------------------- #
@@ -2134,7 +2323,12 @@ class Compagnon(ctk.CTk):
 
         def travail():
             try:
-                nouveau = telecharger_fichier(self.url_exe, progres, ".exe")
+                # La référence vient des MÉTADONNÉES de la release, pas du
+                # fichier qu'on s'apprête à télécharger (programme 9).
+                sha, taille = reference_asset(EXE_ATTENDU)
+                nouveau = telecharger_fichier(self.url_exe, progres, ".exe",
+                                              sha256_attendu=sha,
+                                              taille_attendue=taille)
                 self.after(0, lambda n=nouveau: self._redemarrer_avec(n))
             except Exception as e:
                 self.after(0, lambda err=e: self._maj_compagnon_ratee(err))

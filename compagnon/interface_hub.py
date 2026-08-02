@@ -1330,12 +1330,20 @@ class Hub(tk.Tk):
 
     def _maj_appli_fond(self):
         try:
+            # La référence d'intégrité vient des métadonnées de la release,
+            # pas du fichier téléchargé (programme 9).
+            sha, taille = logique.reference_asset(logique.EXE_ATTENDU)
             chemin = logique.telecharger_fichier(self.url_exe,
-                                                 suffixe=".exe")
-        except Exception:
+                                                 suffixe=".exe",
+                                                 sha256_attendu=sha,
+                                                 taille_attendue=taille)
+        except Exception as err:
+            # On DIT pourquoi. Le message d'origine était le même quelle que
+            # soit la cause — or un téléchargement abîmé et une panne réseau
+            # n'appellent pas le même geste du joueur, et refuser en silence
+            # recrée la boucle qu'on essaie de casser (programme 9).
             self._sur_canvas(self.statut, "erreur",
-                             "Téléchargement impossible. Réessaie plus "
-                             "tard.")
+                             "Mise à jour impossible — %s" % err)
             return
         self._sur_canvas(self._remplacer_appli, chemin)
 

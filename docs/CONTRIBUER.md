@@ -44,4 +44,19 @@ Un contresens, une phrase bizarre, un accord douteux ? Deux chemins :
 - le [Discord](https://discord.gg/kFJGDJbeay), avec une capture si possible ;
 - une [issue GitHub](../../../issues) si tu préfères.
 
+## Corriger le texte français toi-même
+
+Les traductions vivent dans un dépôt à part :
+**[AscensionFR-Textes](https://github.com/LePetitDan/AscensionFR-Textes)**.
+
+Ce sont des fichiers JSON — **un éditeur de texte suffit, aucun outil à
+installer**. Tu corriges la ligne, tu ouvres une pull request, et ta
+correction part dans la version suivante.
+
+Lis le `LISEZMOI.md` du dépôt avant de commencer : il tient en une page et il
+contient quatre avertissements qui évitent de travailler pour rien — dont
+celui-ci, qui surprend tout le monde : **environ une chaîne d'interface sur
+sept est déjà couverte par la traduction officielle de Blizzard**, qui
+l'emporte sur la nôtre. La corriger ne change rien en jeu.
+
 Merci — chaque retour améliore la suite. 💜
