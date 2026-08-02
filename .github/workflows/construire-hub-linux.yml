@@ -342,16 +342,46 @@ jobs:
         run: |
           set -eu
           python - <<'PY'
-          import hashlib, os, sys
+          import hashlib, os, re, sys, zlib
+
           secret = os.environ["WEBHOOK"].encode()
           donnees = open("compagnon/dist/AscensionFR_Hub", "rb").read()
-          n = donnees.count(secret)
           print("taille du binaire : %.1f Mo" % (len(donnees) / 1048576))
-          print("occurrences du webhook dans le binaire :", n)
-          print("empreinte SHA-256 du binaire :", hashlib.sha256(donnees).hexdigest())
-          if n < 1:
-              print("::error::le webhook n'est PAS dans le binaire")
+          print("empreinte SHA-256 du binaire :",
+                hashlib.sha256(donnees).hexdigest())
+          # Une empreinte tronquée du SECRET : elle ne révèle rien (non
+          # inversible) mais permet de vérifier qu'il s'agit bien du bon
+          # webhook, sans jamais l'écrire.
+          print("empreinte du secret (16 premiers hex) :",
+                hashlib.sha256(secret).hexdigest()[:16])
+
+          # PREMIER ESSAI, ET POURQUOI IL ÉTAIT FAUX. Chercher les octets du
+          # secret en clair rend 0 : PyInstaller ne stocke pas le source, il
+          # stocke le BYTECODE dans une archive PYZ **compressée en zlib**.
+          # L'absence en clair ne prouve donc rien — il faut décompresser.
+          clair = donnees.count(secret)
+          print("occurrences en clair dans le binaire :", clair)
+
+          # On balaie les en-têtes zlib plausibles et on tente de décompresser.
+          # La plupart échouent aussitôt (faux en-têtes) ; celui de la PYZ,
+          # lui, rend le bytecode où le secret figure comme constante.
+          trouve = essais = 0
+          for m in re.finditer(rb"\x78[\x01\x5e\x9c\xda]", donnees):
+              essais += 1
+              try:
+                  sortie = zlib.decompressobj().decompress(
+                      donnees[m.start():], 64 << 20)
+              except zlib.error:
+                  continue
+              if secret in sortie:
+                  trouve += 1
+          print("flux zlib essayés :", essais)
+          print("flux zlib décompressés contenant le webhook :", trouve)
+
+          if trouve < 1:
+              print("::error::le webhook n'est retrouvé nulle part dans le binaire")
               sys.exit(1)
+          print("le binaire porte bien le webhook (jamais affiché).")
           PY
 
       # Le coureur est jetable, mais on le dit quand même : un `git add -A`
