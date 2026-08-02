@@ -43,8 +43,14 @@ Environnement géré par [uv](https://docs.astral.sh/uv/) — `pyproject.toml` e
 ```
 uv sync
 cd compagnon
+uv run python fabriquer_decor_hub.py
 uv run python -m PyInstaller AscensionFR_Hub.spec
 ```
+
+`fabriquer_decor_hub.py` génère les décors du Hub (`assets/hub/`) à partir de
+`Ajouter par Dan/wow-ui-textures/` et `sources/fonts/`, à la racine du dépôt.
+Ces deux dossiers ne sont **pas fournis dans ce dépôt** — sans eux, cette
+étape échoue et l'exe produit plante au lancement.
 
 PyInstaller ne fait pas de compilation croisée : le binaire produit correspond
 à la plateforme sur laquelle vous lancez la commande (`.exe` sous Windows,
