@@ -82,12 +82,33 @@ jobs:
     # plus bas — on la mesure, on ne la suppose pas.
     runs-on: ubuntu-22.04
 
+    # ⚠️ ÉCHAFAUDAGE D'ESSAI — À RETIRER AVEC LE DÉCLENCHEUR `push`.
+    # Un `push` ne porte aucun `inputs`, donc aucun moyen de demander autre
+    # chose que le diagnostic. On lit alors un marqueur dans le message de
+    # commit. En fusion, seul `inputs.mode` doit subsister.
+    #   [distribution] -> demande le secret ET l'approbation
+    #   [sans-secret]  -> NE demande PAS l'environnement, mais passe quand même
+    #                     par la barrière : c'est ainsi qu'on la voit mordre
+    env:
+      MODE: >-
+        ${{ inputs.mode
+            || (contains(github.event.head_commit.message || '', '[distribution]') && 'distribution')
+            || (contains(github.event.head_commit.message || '', '[sans-secret]') && 'sans-secret')
+            || 'diagnostic' }}
+
     # L'ENVIRONNEMENT EST LA PROTECTION, et il n'est demandé QUE si l'on veut
     # le secret. Avec « Required reviewers » coché, tout run en mode
     # « distribution » S'ARRÊTE et attend une approbation humaine, en affichant
     # la branche d'où part le code. Un workflow modifié par une PR fusionnée
     # par inadvertance ne peut donc rien obtenir tout seul.
-    environment: ${{ inputs.mode == 'distribution' && 'publication' || '' }}
+    #
+    # Corollaire utile : NE PAS demander l'environnement, c'est ne pas recevoir
+    # ses secrets. Le mode « sans-secret » s'en sert pour éprouver la barrière
+    # sans toucher au réglage de Dan.
+    environment: >-
+      ${{ (inputs.mode == 'distribution'
+           || contains(github.event.head_commit.message || '', '[distribution]'))
+          && 'publication' || '' }}
 
     steps:
       - name: Récupérer le dépôt
@@ -103,7 +124,7 @@ jobs:
       - name: Relever la machine (glibc, tkinter, distribution)
         run: |
           set -eu
-          echo "mode demandé : ${{ inputs.mode }}   raison : ${{ inputs.raison }}"
+          echo "mode effectif : $MODE   raison : ${{ inputs.raison }}"
           echo "--- distribution ---"
           head -3 /etc/os-release
           echo "--- glibc : c'est à CELLE-CI que le binaire se liera ---"
@@ -120,7 +141,7 @@ jobs:
       # saurait pourquoi. Un échec franc vaut mieux qu'un binaire qui a l'air
       # de marcher.
       - name: Barrière — le secret est-il présent ?
-        if: inputs.mode == 'distribution'
+        if: env.MODE != 'diagnostic'
         env:
           WEBHOOK: ${{ secrets.WEBHOOK_RAPPORTS }}
         run: |
@@ -146,7 +167,7 @@ jobs:
       # ligne : le secret transite par une variable d'environnement et n'est
       # jamais écrit sur la sortie.
       - name: Injecter le webhook dans la source
-        if: inputs.mode == 'distribution'
+        if: env.MODE == 'distribution'
         env:
           WEBHOOK: ${{ secrets.WEBHOOK_RAPPORTS }}
         run: |
@@ -239,6 +260,36 @@ jobs:
       # LA PREUVE QUI COMPTE : on LANCE vraiment le Hub, sur un écran virtuel,
       # dans les 5 vues, en mode --demo (aucun réseau, et surtout pas le
       # `after(2500, envoi_auto_au_lancement)` qui expédierait une récolte).
+      # Le bouton « Envoyer mon rapport » n'est actif que si DEUX conditions
+      # sont réunies (interface_hub.py l. 2282) :
+      #     possible = bool(WEBHOOK_RAPPORTS and jeu_valide(self.jeu))
+      # Sans dossier de jeu, il resterait gris même avec le webhook, et la
+      # capture ne prouverait rien. On pose donc un faux dossier de jeu qui
+      # satisfait `racine_jeu()` : « Interface » ET « Data » (compagnon.py
+      # l. 165-176). Il est VIDE — aucun texte à récolter, donc rien à envoyer.
+      - name: Poser un faux dossier de jeu (pour que le bouton soit jugeable)
+        working-directory: compagnon
+        run: |
+          set -eu
+          mkdir -p /tmp/faux_jeu/Interface /tmp/faux_jeu/Data
+          mkdir -p AscensionFR
+          python - <<'PY'
+          import io, json
+          # CONFIG = $APPDATA/AscensionFR/compagnon.json ; APPDATA n'existe pas
+          # sous Linux, donc os.environ.get("APPDATA", ".") rend "." et le
+          # fichier est cherché dans le dossier courant.
+          io.open("AscensionFR/compagnon.json", "w", encoding="utf-8").write(
+              json.dumps({"jeu": "/tmp/faux_jeu", "envoi_auto": False}))
+          print("config posée : jeu=/tmp/faux_jeu, envoi_auto=False")
+          PY
+          echo "--- ce faux dossier est-il une racine de jeu valide ? ---"
+          python -c "
+          import os
+          c='/tmp/faux_jeu'
+          print('Interface :', os.path.isdir(os.path.join(c,'Interface')))
+          print('Data      :', os.path.isdir(os.path.join(c,'Data')))
+          "
+
       - name: Lancer le Hub — les 5 vues sur écran virtuel
         working-directory: compagnon
         run: |
@@ -285,7 +336,7 @@ jobs:
           PY
 
       - name: Prouver que le binaire porte le webhook, sans le montrer
-        if: inputs.mode == 'distribution'
+        if: env.MODE == 'distribution'
         env:
           WEBHOOK: ${{ secrets.WEBHOOK_RAPPORTS }}
         run: |
@@ -326,7 +377,7 @@ jobs:
       # LE BINAIRE NE PART QU'EN MODE DISTRIBUTION. En diagnostic, cette étape
       # ne s'exécute pas : un binaire sans webhook ne peut donc pas circuler.
       - name: Exporter le binaire en ARTEFACT (jamais en release)
-        if: inputs.mode == 'distribution'
+        if: env.MODE == 'distribution'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: AscensionFR_Hub-linux
