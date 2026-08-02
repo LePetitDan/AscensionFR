@@ -37,26 +37,6 @@
 name: Construire le Hub (Linux)
 
 on:
-  # ⚠️ ÉCHAFAUDAGE D'ESSAI — À RETIRER AVANT TOUTE FUSION DANS `main`.
-  #
-  # GitHub n'enregistre un `workflow_dispatch` que si le fichier existe DÉJÀ
-  # sur la branche par défaut : on ne peut donc pas éprouver un workflow sur
-  # une branche sans l'avoir d'abord fusionné. Or ce programme interdit de
-  # fusionner quoi que ce soit sans l'accord de Dan — à juste titre.
-  #
-  # Ce déclencheur lève le blocage SANS affaiblir la règle de sécurité, et
-  # c'est structurel, pas une promesse :
-  #   - pousser sur cette branche exige un droit d'écriture sur le dépôt.
-  #     Personne d'autre que Dan ne l'a. Ce n'est donc PAS un chemin par
-  #     lequel du code de fork s'exécuterait — contrairement à
-  #     `pull_request_target`, qui reste interdit ;
-  #   - sur un événement `push`, `inputs.mode` est VIDE. Toutes les étapes
-  #     gardées par `inputs.mode == 'distribution'` sont donc sautées : un run
-  #     déclenché ainsi ne peut ni demander l'environnement, ni lire le secret,
-  #     ni exporter de binaire. Il est diagnostic par construction.
-  push:
-    branches: [linux-build]
-
   workflow_dispatch:
     inputs:
       mode:
@@ -82,19 +62,9 @@ jobs:
     # plus bas — on la mesure, on ne la suppose pas.
     runs-on: ubuntu-22.04
 
-    # ⚠️ ÉCHAFAUDAGE D'ESSAI — À RETIRER AVEC LE DÉCLENCHEUR `push`.
-    # Un `push` ne porte aucun `inputs`, donc aucun moyen de demander autre
-    # chose que le diagnostic. On lit alors un marqueur dans le message de
-    # commit. En fusion, seul `inputs.mode` doit subsister.
-    #   [distribution] -> demande le secret ET l'approbation
-    #   [sans-secret]  -> NE demande PAS l'environnement, mais passe quand même
-    #                     par la barrière : c'est ainsi qu'on la voit mordre
+    # Le mode vient UNIQUEMENT de l'entrée du déclencheur manuel.
     env:
-      MODE: >-
-        ${{ inputs.mode
-            || (contains(github.event.head_commit.message || '', '[distribution]') && 'distribution')
-            || (contains(github.event.head_commit.message || '', '[sans-secret]') && 'sans-secret')
-            || 'diagnostic' }}
+      MODE: ${{ inputs.mode }}
 
     # L'ENVIRONNEMENT EST LA PROTECTION, et il n'est demandé QUE si l'on veut
     # le secret. Avec « Required reviewers » coché, tout run en mode
@@ -102,13 +72,10 @@ jobs:
     # la branche d'où part le code. Un workflow modifié par une PR fusionnée
     # par inadvertance ne peut donc rien obtenir tout seul.
     #
-    # Corollaire utile : NE PAS demander l'environnement, c'est ne pas recevoir
-    # ses secrets. Le mode « sans-secret » s'en sert pour éprouver la barrière
-    # sans toucher au réglage de Dan.
-    environment: >-
-      ${{ (inputs.mode == 'distribution'
-           || contains(github.event.head_commit.message || '', '[distribution]'))
-          && 'publication' || '' }}
+    # Corollaire, et c'est ce qui rend le mode « diagnostic » sûr : NE PAS
+    # demander l'environnement, c'est ne pas recevoir ses secrets. Un run en
+    # diagnostic ne peut donc pas lire le webhook, même par erreur de code.
+    environment: ${{ inputs.mode == 'distribution' && 'publication' || '' }}
 
     steps:
       - name: Récupérer le dépôt
@@ -141,7 +108,7 @@ jobs:
       # saurait pourquoi. Un échec franc vaut mieux qu'un binaire qui a l'air
       # de marcher.
       - name: Barrière — le secret est-il présent ?
-        if: env.MODE != 'diagnostic'
+        if: env.MODE == 'distribution'
         env:
           WEBHOOK: ${{ secrets.WEBHOOK_RAPPORTS }}
         run: |
