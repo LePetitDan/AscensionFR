@@ -37,6 +37,26 @@
 name: Construire le Hub (Linux)
 
 on:
+  # ⚠️ ÉCHAFAUDAGE D'ESSAI — À RETIRER AVANT TOUTE FUSION DANS `main`.
+  #
+  # GitHub n'enregistre un `workflow_dispatch` que si le fichier existe DÉJÀ
+  # sur la branche par défaut : on ne peut donc pas éprouver un workflow sur
+  # une branche sans l'avoir d'abord fusionné. Or ce programme interdit de
+  # fusionner quoi que ce soit sans l'accord de Dan — à juste titre.
+  #
+  # Ce déclencheur lève le blocage SANS affaiblir la règle de sécurité, et
+  # c'est structurel, pas une promesse :
+  #   - pousser sur cette branche exige un droit d'écriture sur le dépôt.
+  #     Personne d'autre que Dan ne l'a. Ce n'est donc PAS un chemin par
+  #     lequel du code de fork s'exécuterait — contrairement à
+  #     `pull_request_target`, qui reste interdit ;
+  #   - sur un événement `push`, `inputs.mode` est VIDE. Toutes les étapes
+  #     gardées par `inputs.mode == 'distribution'` sont donc sautées : un run
+  #     déclenché ainsi ne peut ni demander l'environnement, ni lire le secret,
+  #     ni exporter de binaire. Il est diagnostic par construction.
+  push:
+    branches: [linux-build]
+
   workflow_dispatch:
     inputs:
       mode:
