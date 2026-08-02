@@ -1,0 +1,307 @@
+# Construit le Hub AscensionFR pour Linux.
+#
+# POURQUOI CE WORKFLOW EXISTE. Depuis le programme 17, un joueur Linux peut
+# cloner le dépôt et lancer `python compagnon_hub.py`. Ce n'est pas une
+# distribution : il n'a rien à télécharger. Le coureur d'Actions EST la machine
+# Linux qui manque au mainteneur, dont le poste est sous Windows.
+#
+# LES DEUX RÈGLES QUI NE SE DISCUTENT PAS
+#   1. Le déclencheur est `workflow_dispatch`, et RIEN d'autre. Surtout pas
+#      `pull_request_target`, qui exécuterait le code d'un fork AVEC les
+#      secrets du dépôt. Le webhook des rapports est une autorisation
+#      d'écriture à porteur : qui l'a écrit dans le salon des rapports.
+#   2. Toute action tierce est épinglée à une EMPREINTE DE COMMIT, jamais à
+#      une étiquette. Une étiquette se déplace — le projet a documenté ce que
+#      ça coûte (programme 7).
+#
+# LES DEUX MODES, ET POURQUOI IL Y EN A DEUX
+#   « diagnostic »   — ne touche PAS au secret, ne demande aucune approbation,
+#                      et n'exporte QUE des captures d'écran. Le binaire est
+#                      construit puis jeté : il ne peut donc pas circuler.
+#                      C'est ce mode qui répond aux questions de machine
+#                      (glibc, tkinter, polices, taille) sans rien risquer.
+#   « distribution » — réclame le secret, échoue franchement s'il manque, et
+#                      exporte le binaire en ARTEFACT DE RUN.
+#
+#   Le mode « diagnostic » n'est PAS une porte dérobée pour publier un binaire
+#   muet : dans ce mode l'étape d'export du binaire ne s'exécute pas du tout.
+#   C'est structurel, pas une convention.
+#
+# CE QU'IL NE FAIT PAS, ET C'EST VOULU
+#   - il ne crée ni tag, ni release, ni pré-version. Le binaire sort en
+#     ARTEFACT DE RUN, visible seulement dans l'onglet Actions : aucun des
+#     Compagnons installés ne peut le voir, donc aucun joueur n'est exposé ;
+#   - il ne donne pas la mise à jour automatique aux joueurs Linux : le relais
+#     de remplacement est écrit en .bat Windows.
+
+name: Construire le Hub (Linux)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "diagnostic (sans secret, captures seules) ou distribution (avec secret, binaire)"
+        required: true
+        default: diagnostic
+        type: choice
+        options: [diagnostic, distribution]
+      raison:
+        description: "Pourquoi cette construction (apparaît dans le journal)"
+        required: false
+        default: "essai"
+
+permissions:
+  contents: read          # le jeton du workflow ne doit rien pouvoir écrire
+
+jobs:
+  construire:
+    # ubuntu-22.04 DÉLIBÉRÉMENT, pas `ubuntu-latest` : un binaire PyInstaller se
+    # lie à la glibc de la machine qui le construit et ne tourne PAS sur une
+    # glibc plus ancienne. Construire sur le coureur le plus VIEUX disponible
+    # est donc ce qui couvre le plus de joueurs. La version exacte est relevée
+    # plus bas — on la mesure, on ne la suppose pas.
+    runs-on: ubuntu-22.04
+
+    # L'ENVIRONNEMENT EST LA PROTECTION, et il n'est demandé QUE si l'on veut
+    # le secret. Avec « Required reviewers » coché, tout run en mode
+    # « distribution » S'ARRÊTE et attend une approbation humaine, en affichant
+    # la branche d'où part le code. Un workflow modifié par une PR fusionnée
+    # par inadvertance ne peut donc rien obtenir tout seul.
+    environment: ${{ inputs.mode == 'distribution' && 'publication' || '' }}
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Installer Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+
+      # Relevé AVANT toute construction : ce sont les questions auxquelles il
+      # faut une réponse mesurée, et elles ne coûtent que quelques secondes.
+      - name: Relever la machine (glibc, tkinter, distribution)
+        run: |
+          set -eu
+          echo "mode demandé : ${{ inputs.mode }}   raison : ${{ inputs.raison }}"
+          echo "--- distribution ---"
+          head -3 /etc/os-release
+          echo "--- glibc : c'est à CELLE-CI que le binaire se liera ---"
+          ldd --version | head -1
+          getconf GNU_LIBC_VERSION
+          echo "--- python ---"
+          python -c "import sys; print(sys.version)"
+          echo "--- tkinter, sans rien installer ? ---"
+          python -c "import tkinter, _tkinter; print('tkinter OK — Tcl/Tk', _tkinter.TK_VERSION)"
+
+      # LA BARRIÈRE. En mode distribution, sans secret on s'arrête ICI,
+      # bruyamment. Construire quand même produirait un binaire muet : le
+      # bouton « Envoyer mon rapport » serait peint en gris et personne ne
+      # saurait pourquoi. Un échec franc vaut mieux qu'un binaire qui a l'air
+      # de marcher.
+      - name: Barrière — le secret est-il présent ?
+        if: inputs.mode == 'distribution'
+        env:
+          WEBHOOK: ${{ secrets.WEBHOOK_RAPPORTS }}
+        run: |
+          set -eu
+          if [ -z "${WEBHOOK:-}" ]; then
+            echo "::error::WEBHOOK_RAPPORTS est absent de l'environnement « publication »."
+            echo "Le binaire construit sans lui ne pourrait envoyer aucun rapport."
+            echo "À faire : Settings > Environments > publication > Add secret,"
+            echo "nom exact WEBHOOK_RAPPORTS."
+            exit 1
+          fi
+          echo "secret présent (longueur ${#WEBHOOK}) — sa valeur n'est jamais affichée."
+
+      # L'INJECTION. On n'invente pas de mécanisme : on reprend EXACTEMENT le
+      # motif d'affectation de outils/secrets_publication.py (_motif_affectation),
+      # celui qui sert à neutraliser dans l'autre sens. Et on reprend surtout sa
+      # LEÇON : ce code a déjà eu un défaut où le motif s'accrochait à une paire
+      # de guillemets vide, ne remplaçait rien, et annonçait « 1 secret
+      # neutralisé ». On COMPTE donc les affectations, et une seule qui échappe
+      # est un échec.
+      #
+      # Aucun `set -x`, aucun `cat` du fichier, aucun message qui recrache la
+      # ligne : le secret transite par une variable d'environnement et n'est
+      # jamais écrit sur la sortie.
+      - name: Injecter le webhook dans la source
+        if: inputs.mode == 'distribution'
+        env:
+          WEBHOOK: ${{ secrets.WEBHOOK_RAPPORTS }}
+        run: |
+          set -eu
+          python - <<'PY'
+          import io, os, re, sys
+
+          CHEMIN = "compagnon/compagnon.py"
+          NOM = "WEBHOOK_RAPPORTS"
+          secret = os.environ["WEBHOOK"]
+
+          texte = io.open(CHEMIN, encoding="utf-8").read()
+
+          # Le motif de secrets_publication.py, à l'identique : le reste de la
+          # ligne (le commentaire) est préservé, seule la VALEUR change.
+          motif = re.compile(r"""(?m)^(\s*%s\s*=\s*)(["'])(?:\\.|(?!\2).)*\2"""
+                             % re.escape(NOM))
+
+          attendues = len(re.findall(r"(?m)^\s*%s\s*=" % re.escape(NOM), texte))
+          if attendues != 1:
+              print("::error::%d affectation(s) de %s trouvée(s), 1 attendue."
+                    % (attendues, NOM))
+              sys.exit(1)
+
+          texte, faites = motif.subn(
+              lambda m: "%s%s%s%s" % (m.group(1), m.group(2), secret, m.group(2)),
+              texte)
+          if faites != attendues:
+              print("::error::%d affectation(s) traitée(s) sur %d."
+                    % (faites, attendues))
+              sys.exit(1)
+
+          io.open(CHEMIN, "w", encoding="utf-8").write(texte)
+          # On ne réaffiche RIEN du fichier. On prouve autrement :
+          print("injection faite : %d affectation(s) traitée(s)" % faites)
+
+          # Contrôle indépendant, toujours sans montrer la valeur.
+          relu = io.open(CHEMIN, encoding="utf-8").read()
+          vide = re.search(r'(?m)^\s*WEBHOOK_RAPPORTS\s*=\s*""', relu)
+          print("la ligne est-elle encore vide :", bool(vide))
+          print("occurrences du secret dans la source :", relu.count(secret))
+          if vide or relu.count(secret) != 1:
+              sys.exit(1)
+          PY
+
+      - name: Installer les dépendances
+        run: |
+          set -eu
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller pillow customtkinter lupa certifi
+          # xvfb : un écran virtuel, pour LANCER vraiment l'interface.
+          # imagemagick : pour la photographier.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb imagemagick x11-utils
+
+      # Le .spec du dépôt est écrit POUR WINDOWS et ne peut pas servir ici :
+      #   runtime_tmpdir='%LOCALAPPDATA%\\AscensionFR_Compagnon'  (variable Windows)
+      #   icon=['assets\\logo.ico']                               (chemin backslash, .ico)
+      #   pathex=[.../outils]                                     (dossier PRIVÉ, absent du dépôt public)
+      # Plutôt que d'ajouter un second .spec qui dériverait du premier sans que
+      # personne s'en aperçoive, on traduit la recette en options, ligne pour
+      # ligne. La correspondance est explicite :
+      #   datas=[('assets','assets')]  -> --add-data assets:assets
+      #   hiddenimports=['parser_wdb'] -> --hidden-import parser_wdb
+      #   collect_all(x)               -> --collect-all x
+      #   console=False                -> --windowed
+      - name: Construire le binaire
+        working-directory: compagnon
+        run: |
+          set -eu
+          pyinstaller --noconfirm --clean --onefile --windowed \
+            --name AscensionFR_Hub \
+            --add-data "assets:assets" \
+            --hidden-import parser_wdb \
+            --collect-all customtkinter \
+            --collect-all lupa \
+            --collect-all certifi \
+            compagnon_hub.py
+          ls -la dist/
+          python -c "import os; print('taille : %.1f Mo' % (os.path.getsize('dist/AscensionFR_Hub')/1048576))"
+
+      # LA PREUVE QUI COMPTE : on LANCE vraiment le Hub, sur un écran virtuel,
+      # dans les 5 vues, en mode --demo (aucun réseau, et surtout pas le
+      # `after(2500, envoi_auto_au_lancement)` qui expédierait une récolte).
+      - name: Lancer le Hub — les 5 vues sur écran virtuel
+        working-directory: compagnon
+        run: |
+          set -eu
+          mkdir -p ../captures
+          echec=0
+          for v in accueil traduction voix addons contribuer; do
+            echo "======== vue $v ========"
+            xvfb-run -a --server-args="-screen 0 1280x800x24" bash -c "
+              ./dist/AscensionFR_Hub --demo $v > /tmp/$v.log 2>&1 &
+              pid=\$!
+              sleep 12
+              import -window root ../captures/vue_$v.png 2>/dev/null || true
+              kill \$pid 2>/dev/null || true
+              wait \$pid 2>/dev/null || true
+            " || true
+            if [ -s /tmp/$v.log ]; then
+              echo "--- sortie de la vue $v ---"
+              head -30 /tmp/$v.log
+              echec=1
+            else
+              echo "aucune sortie d'erreur"
+            fi
+            ls -la ../captures/vue_$v.png 2>/dev/null || echo "pas de capture"
+          done
+          echo "des vues ont écrit sur la sortie d'erreur : $echec"
+
+      # Les 98 fichiers d'assets/hub sont-ils embarqués, et les polices du jeu
+      # sont-elles réellement CHARGÉES ? Ce sont deux questions différentes :
+      # `charger_polices()` passe par ctypes.windll.gdi32, une API Windows.
+      - name: Vérifier les assets embarqués et le sort des polices
+        working-directory: compagnon
+        run: |
+          set -eu
+          echo "--- les assets sont-ils dans le binaire ? ---"
+          for motif in decor_hub.json catalogue_hub.json MORPHEUS.TTF FRIZQT__.TTF fond.png; do
+            n=$(grep -a -c "$motif" dist/AscensionFR_Hub || true)
+            echo "  $motif : $n occurrence(s) dans le binaire"
+          done
+          echo "--- charger_polices() peut-il fonctionner ici ? ---"
+          python - <<'PY'
+          import ctypes
+          print("ctypes a-t-il windll (API Windows) :", hasattr(ctypes, "windll"))
+          PY
+
+      - name: Prouver que le binaire porte le webhook, sans le montrer
+        if: inputs.mode == 'distribution'
+        env:
+          WEBHOOK: ${{ secrets.WEBHOOK_RAPPORTS }}
+        run: |
+          set -eu
+          python - <<'PY'
+          import hashlib, os, sys
+          secret = os.environ["WEBHOOK"].encode()
+          donnees = open("compagnon/dist/AscensionFR_Hub", "rb").read()
+          n = donnees.count(secret)
+          print("taille du binaire : %.1f Mo" % (len(donnees) / 1048576))
+          print("occurrences du webhook dans le binaire :", n)
+          print("empreinte SHA-256 du binaire :", hashlib.sha256(donnees).hexdigest())
+          if n < 1:
+              print("::error::le webhook n'est PAS dans le binaire")
+              sys.exit(1)
+          PY
+
+      # Le coureur est jetable, mais on le dit quand même : un `git add -A`
+      # ajouté un jour par distraction publierait le webhook.
+      - name: Prouver que rien de modifié ne peut être poussé
+        run: |
+          set -eu
+          echo "--- fichiers modifiés dans le coureur ---"
+          git status --porcelain || true
+          echo "--- le jeton est en lecture seule (permissions: contents: read) ---"
+          echo "aucun push n'est possible depuis ce workflow."
+
+      # Les captures partent TOUJOURS : elles ne contiennent aucun secret.
+      - name: Exporter les captures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: captures-linux-${{ inputs.mode }}
+          path: captures/
+          retention-days: 7
+          if-no-files-found: warn
+
+      # LE BINAIRE NE PART QU'EN MODE DISTRIBUTION. En diagnostic, cette étape
+      # ne s'exécute pas : un binaire sans webhook ne peut donc pas circuler.
+      - name: Exporter le binaire en ARTEFACT (jamais en release)
+        if: inputs.mode == 'distribution'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: AscensionFR_Hub-linux
+          path: compagnon/dist/AscensionFR_Hub
+          retention-days: 7
+          if-no-files-found: error
