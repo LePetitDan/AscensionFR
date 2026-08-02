@@ -1332,11 +1332,12 @@ class Hub(tk.Tk):
         try:
             # La référence d'intégrité vient des métadonnées de la release,
             # pas du fichier téléchargé (programme 9).
-            sha, taille = logique.reference_asset(logique.EXE_ATTENDU)
-            chemin = logique.telecharger_fichier(self.url_exe,
-                                                 suffixe=".exe",
-                                                 sha256_attendu=sha,
-                                                 taille_attendue=taille)
+            sha, taille = logique.reference_asset(logique.ASSET_APPLICATION)
+            chemin = logique.telecharger_fichier(
+                self.url_exe,
+                suffixe=logique.SUFFIXE_APPLICATION,
+                sha256_attendu=sha,
+                taille_attendue=taille)
         except Exception as err:
             # On DIT pourquoi. Le message d'origine était le même quelle que
             # soit la cause — or un téléchargement abîmé et une panne réseau
@@ -1348,6 +1349,17 @@ class Hub(tk.Tk):
         self._sur_canvas(self._remplacer_appli, chemin)
 
     def _remplacer_appli(self, chemin):
+        if plateforme.remplacement_possible():
+            # Linux : aucun relais à orchestrer. Le fichier s'échange sous le
+            # processus qui tourne, et l'application se relance elle-même —
+            # remplacer_application ne rend donc la main qu'en cas d'échec, et
+            # elle DIT lequel (dossier en lecture seule, version qui refuse de
+            # démarrer…). Le message générique ne suffirait pas à agir.
+            try:
+                plateforme.remplacer_application(chemin, sys.executable)
+            except Exception as err:
+                self.statut("erreur", "Mise à jour impossible — %s" % err)
+            return
         try:
             logique.lancer_remplacement(chemin, sys.executable)
         except Exception:
