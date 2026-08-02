@@ -41,6 +41,7 @@ from tkinter import filedialog
 from PIL import Image, ImageTk
 
 import compagnon as logique
+import plateforme                     # couche d'abstraction Windows/Linux
 
 # --------------------------------------------------------------------------- #
 # Plan de la fenêtre — la seule source des cotes, partagée avec
@@ -481,7 +482,15 @@ def installer_addon_zip(chemin_zip, jeu, dossier):
 
 def _candidats_registre():
     """Emplacements du launcher Ascension notés dans le registre Windows
-    (clés de désinstallation). LECTURE seule, jamais d'écriture."""
+    (clés de désinstallation). LECTURE seule, jamais d'écriture.
+
+    Hors Windows il n'y a pas de registre : on rend une liste vide au lieu de
+    laisser `import winreg` échouer. Sans ce garde-fou, « Lancer le jeu »
+    plante sous Linux avant même d'atteindre plateforme.lancer — c'est le
+    seul appel Windows du Hub qui n'était pas déjà protégé (les polices, le
+    DPI et la relance admin le sont par try/except)."""
+    if not plateforme.EST_WINDOWS:
+        return []
     import winreg
     bases = []
     coins = ((winreg.HKEY_CURRENT_USER,
@@ -793,22 +802,18 @@ class Hub(tk.Tk):
         for base in candidats:
             launcher = os.path.join(base, "Ascension Launcher.exe")
             if os.path.isfile(launcher):
-                try:
-                    os.startfile(launcher)
+                # plateforme.lancer : os.startfile sous Windows (inchangé),
+                # runner Proton/Wine sous Linux. Renvoie True si tenté.
+                if plateforme.lancer(launcher, plateforme.prefixe_de(base)):
                     self.statut("succes", "Le launcher Ascension se lance. "
                                           "Bon voyage !")
                     return
-                except OSError:
-                    pass
         exe = os.path.join(self.jeu or "", "Ascension.exe")
         if self.jeu and os.path.isfile(exe):
-            try:
-                os.startfile(exe)
+            if plateforme.lancer(exe, plateforme.prefixe_de(self.jeu)):
                 self.statut("succes", "Launcher introuvable — le jeu se "
                                       "lance directement.")
                 return
-            except OSError:
-                pass
         self.statut("erreur", "Impossible de trouver le launcher ou le jeu. "
                               "Vérifie le dossier dans l'onglet Traduction.")
 
@@ -1892,7 +1897,18 @@ class Hub(tk.Tk):
         y = self.winfo_rooty() + max(20, (M["H"] - hauteur) // 2)
         f.geometry("%dx%d+%d+%d" % (largeur, hauteur, x, y))
         f.transient(self)
-        f.grab_set()
+        # grab_set() exige une fenêtre déjà affichée. Sous Windows elle l'est
+        # dès sa création ; sous X11 le gestionnaire de fenêtres la mappe un
+        # instant plus tard, et l'appel échoue alors sur « grab failed: window
+        # not viewable » — l'exception partant AVANT que le contenu soit
+        # construit, la fenêtre restait vide. On attend donc l'affichage.
+        # Et le grab n'est pas vital : sans lui la fenêtre s'utilise
+        # normalement, elle n'est simplement plus modale.
+        try:
+            f.wait_visibility()
+            f.grab_set()
+        except tk.TclError:
+            pass
         return f
 
     def _zone_defilante(self, parent, largeur, hauteur):
