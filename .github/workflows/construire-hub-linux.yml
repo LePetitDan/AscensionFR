@@ -211,6 +211,13 @@ jobs:
       # ligne. La correspondance est explicite :
       #   datas=[('assets','assets')]  -> --add-data assets:assets
       #   hiddenimports=['parser_wdb'] -> --hidden-import parser_wdb
+      #
+      # PIL._tkinter_finder N'est PAS dans le .spec Windows, et c'est normal :
+      # sous Windows PyInstaller le trouve seul. Sous Linux, sans lui, Pillow
+      # charge son extension _imagingtk mais la commande Tcl « PyImagingPhoto »
+      # n'est jamais enregistrée -> TclError au premier decor.photo().
+      # Trouvé en lançant, pas en lisant : le premier essai plantait sur
+      # `self.decor.poser(self.canvas, "fond", 0, 0)`.
       #   collect_all(x)               -> --collect-all x
       #   console=False                -> --windowed
       - name: Construire le binaire
@@ -221,6 +228,7 @@ jobs:
             --name AscensionFR_Hub \
             --add-data "assets:assets" \
             --hidden-import parser_wdb \
+            --hidden-import PIL._tkinter_finder \
             --collect-all customtkinter \
             --collect-all lupa \
             --collect-all certifi \
