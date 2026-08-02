@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Lance le Compagnon AscensionFR sous Linux, depuis les sources.
+# Lance le Hub AscensionFR sous Linux, depuis les sources.
 #
 # Sous Windows, les joueurs utilisent l'exe de release. Sous Linux (le jeu
 # tourne alors via un runner Wine/Proton — Faugus, Lutris, Steam Proton…), on
 # lance directement le Python. Ce script crée au besoin un environnement local
 # (.venv) et installe les dépendances : au 1er lancement il prépare tout, aux
 # suivants il démarre instantanément.
+#
+# On démarre compagnon_hub.py — le Hub v3, la MÊME interface que l'exe Windows.
+# La version précédente de ce script lançait compagnon.py (l'interface v2) :
+# c'était un contournement, pas un choix. Le Hub ne pouvait pas démarrer depuis
+# un clone du dépôt, faute d'assets/hub/ versionnés — Decor.__init__ ouvrait
+# decor_hub.json sans garde et levait FileNotFoundError. Ces fichiers ont été
+# ajoutés au dépôt le 02/08 ; le contournement n'a plus lieu d'être, et les
+# joueurs Linux retrouvent l'interface de tout le monde.
 #
 # Usage :  ./lancer-linux.sh        (depuis n'importe où)
 # ---------------------------------------------------------------------------
@@ -35,5 +43,5 @@ if [ ! -x "$VENV/bin/python" ]; then
   echo "→ Prêt."
 fi
 
-# 3. Lancement du Compagnon.
-exec "$VENV/bin/python" "$ICI/compagnon.py" "$@"
+# 3. Lancement du Hub.
+exec "$VENV/bin/python" "$ICI/compagnon_hub.py" "$@"
