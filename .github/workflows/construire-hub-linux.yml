@@ -135,27 +135,29 @@ jobs:
           PY
           echo
           echo "=== 2. « Vérifier mon installation » : grab_set() d'origine ==="
-          xvfb-run -a --server-args="-screen 0 1280x800x24" bash -c '
-            openbox --sm-disable & sleep 2
-            python - <<"PY"
+          # ⚠️ Le script Python va dans un FICHIER, jamais dans un heredoc
+          # imbriqué sous `bash -c '...'` : une apostrophe française dans un
+          # commentaire referme la chaîne du shell et casse tout. Payé au
+          # premier run de ce programme.
+          cat > /tmp/avant_grab.py <<'PY'
           import tkinter as tk, traceback
           racine = tk.Tk(); racine.geometry("300x200"); racine.update()
 
           # (a) LA REPRODUCTION DÉTERMINISTE. Une fenêtre que le serveur X n'a
-          #     pas encore affichée, c'est exactement l'état où se trouve un
-          #     Toplevel tout juste créé quand un gestionnaire de fenêtres
-          #     prend son temps. On le force pour ne pas dépendre du hasard.
+          #     pas encore affichée : c'est exactement l'état d'un Toplevel
+          #     tout juste créé quand le gestionnaire de fenêtres prend son
+          #     temps. On le force pour ne pas dépendre d'une course.
           f = tk.Toplevel(racine); f.withdraw()
           try:
               f.grab_set()
               print("(a) grab_set a réussi sur une fenêtre non affichée ?!")
           except tk.TclError:
               traceback.print_exc()
-              print(">>> (a) VOILÀ l erreur de Tetardtek, reproduite.")
+              print(">>> (a) VOILÀ l'erreur de Tetardtek, reproduite.")
 
           # (b) LE CAS RÉEL, avec un vrai gestionnaire de fenêtres qui vient
-          #     de démarrer. Il peut réussir ou échouer selon la course :
-          #     on RELÈVE, on ne conclut pas.
+          #     de démarrer. Il peut réussir ou échouer selon la course : on
+          #     RELÈVE, on ne conclut pas.
           g = tk.Toplevel(racine); g.geometry("400x200"); g.transient(racine)
           try:
               g.grab_set()
@@ -163,7 +165,8 @@ jobs:
           except tk.TclError as e:
               print("(b) avec openbox : ÉCHEC —", e)
           PY
-          '
+          xvfb-run -a --server-args="-screen 0 1280x800x24" \
+            bash -c "openbox --sm-disable >/dev/null 2>&1 & sleep 2; python /tmp/avant_grab.py"
 
       - name: AVANT — la molette, et pourquoi personne ne l'aurait vue
         run: |
@@ -303,31 +306,58 @@ jobs:
           PY
           echo
           echo "=== 2. _fenetre() — le grab_set du bouton « Vérifier » ==="
-          xvfb-run -a --server-args="-screen 0 1280x800x24" bash -c '
-            openbox --sm-disable & sleep 2
-            python - <<"PY"
+          cat > /tmp/apres_fenetre.py <<'PY'
           import tkinter as tk
           import interface_hub
 
-          # On appelle la VRAIE méthode, sur un objet qui n a que ce qu elle
+          # On appelle la VRAIE méthode, sur un objet qui n'a que ce qu'elle
           # lit — pas de Hub complet, donc pas de décor à charger.
           class Faux(tk.Tk):
               FOND_F, BORD_F = "#efe2c0", "#8a6a2a"
+
           racine = Faux(); racine.geometry("300x200"); racine.update()
-          f = interface_hub.Hub._fenetre(racine, "Controle", 700, 480)
+          f = interface_hub.Hub._fenetre(racine, "Contrôle", 700, 480)
           racine.update()
-          print("la fenetre existe :", bool(f.winfo_exists()))
+          print("la fenêtre existe :", bool(f.winfo_exists()))
           print("titre :", f.title())
-          # On laisse tourner : c est pendant ce temps que la reprise
-          # differee prend le grab si le premier essai a echoue.
+          # On laisse tourner : c'est pendant ce temps que la reprise
+          # différée prend le grab, si le premier essai a échoué.
           racine.after(1500, racine.quit)
           racine.mainloop()
-          tenu = f.grab_current()
-          print("qui tient le grab apres 1,5 s :", tenu)
-          assert f.winfo_exists(), "la fenetre a disparu"
-          print(">>> plus de TclError : le bouton ouvre bien sa fenetre.")
+          print("qui tient le grab après 1,5 s :", f.grab_current())
+          assert f.winfo_exists(), "la fenêtre a disparu"
+          print(">>> plus de TclError : le bouton ouvre bien sa fenêtre.")
+
+          # ET LA PREUVE QUI COMPTE : on rejoue le cas DÉTERMINISTE qui faisait
+          # lever la version d'avant — une fenêtre pas encore affichée.
+          g = tk.Toplevel(racine); g.withdraw()
+          g.FOND_F = "#efe2c0"
+          try:
+              g.grab_set()
+              print("(témoin) grab immédiat réussi — cas non reproduit ici")
+          except tk.TclError as e:
+              print("(témoin) la version d'AVANT lèverait ici :", e)
+              # …et la nôtre, elle, encaisse et réessaie.
+              essais = []
+
+              def reprendre(reste=20):
+                  try:
+                      g.grab_set()
+                      essais.append("pris")
+                  except tk.TclError:
+                      essais.append("pas encore")
+                      if reste and g.winfo_exists():
+                          g.after(50, lambda: reprendre(reste - 1))
+              reprendre()
+              g.deiconify()
+              racine.after(1200, racine.quit)
+              racine.mainloop()
+              print("essais de reprise :", essais)
+              assert "pris" in essais, "la reprise différée n'a jamais abouti"
+              print(">>> la reprise différée rattrape bien le cas d'échec.")
           PY
-          '
+          xvfb-run -a --server-args="-screen 0 1280x800x24" \
+            bash -c "openbox --sm-disable >/dev/null 2>&1 & sleep 2; cd $PWD && python /tmp/apres_fenetre.py"
           echo
           echo "=== 3. la molette relie bien les TROIS séquences ==="
           xvfb-run -a --server-args="-screen 0 1280x800x24" python - <<'PY'
