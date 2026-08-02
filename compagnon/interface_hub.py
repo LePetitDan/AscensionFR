@@ -28,6 +28,7 @@ import os
 import re
 import sys
 import threading
+import traceback
 import urllib.request
 import webbrowser
 import zipfile
@@ -74,7 +75,11 @@ METRIQUE = {
     # Cartes d'addons (2 colonnes)
     "CARTE_W": 372, "CARTE_H": 118,
     # Panneaux
-    "PAN_OR_H": 310, "PAN_NOUV_H": 258, "PAN_LETTRE_H": 330,
+    # PAN_LETTRE_H : 330 -> 364 au programme 23. Le second bouton du bloc B
+    # (« Copier mon rapport ») a repoussé le compteur sous la rangée, et le
+    # compteur a repoussé la case « envoi automatique ». Le panneau grandit
+    # de 34 px plutôt que de tasser trois éléments les uns sur les autres.
+    "PAN_OR_H": 310, "PAN_NOUV_H": 258, "PAN_LETTRE_H": 364,
     # Plaques d'infobulle (lot 12 : jamais d'encre sur le bois — tout texte
     # posé sur la texture passe sur une plaque, la règle que WoW s'applique)
     "PLAQUE_VERDICT_H": 78,      # accueil : verdict + lien de contrôle
@@ -305,6 +310,54 @@ class Decor:
                                    image=self.photo(nom), **kw)
 
 
+# --------------------------------------------------------------------------- #
+# La molette — le même geste, deux protocoles
+# --------------------------------------------------------------------------- #
+# Sous Windows (et macOS), Tk envoie un seul événement `<MouseWheel>` dont
+# `delta` vaut ±120 par cran. Sous X11, la molette est un BOUTON : `<Button-4>`
+# vers le haut, `<Button-5>` vers le bas, et `delta` vaut **0** — un code écrit
+# pour Windows ne défile donc pas du tout, en silence. Trouvé au balayage du
+# programme 23 : trois liaisons dans le Hub, dont le catalogue d'addons, à qui
+# on avait justement retiré son plafond de 6 pour qu'il défile.
+def crans_molette(evenement):
+    """Nombre de crans, signé : positif vers le haut, comme `delta // 120`."""
+    numero = getattr(evenement, "num", None)
+    if numero == 4:
+        return 1
+    if numero == 5:
+        return -1
+    return (getattr(evenement, "delta", 0) or 0) // 120
+
+
+def lier_molette(widget, fonction):
+    """Relie les TROIS séquences. Celles qui ne concernent pas le système ne
+    se déclenchent simplement jamais : rien ne change sous Windows."""
+    for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+        widget.bind(sequence, fonction)
+
+
+# Le nom du décor d'un bouton EST son libellé : on le retraduit en une phrase
+# que le joueur reconnaîtra dans la fenêtre de plantage (programme 23).
+GESTES = {
+    "btn_lancer": "Lancer le jeu",
+    "btn_installer": "Installer la traduction",
+    "btn_maj": "Mettre à jour la traduction",
+    "btn_reessayer": "Réessayer",
+    "btn_admin": "Relancer en administrateur",
+    "btn_voix": "Installer les voix françaises",
+    "btn_voix_couper": "Couper les voix",
+    "btn_voix_remettre": "Remettre les voix",
+    "btn_envoyer": "Envoyer mon rapport",
+    "btn_copier": "Copier mon rapport",
+    "btn_changer": "Changer le dossier du jeu",
+    "btn_discord": "Ouvrir le Discord",
+    "btn_cafe": "Ouvrir la page de soutien",
+    "btn_carte_installer": "Installer un addon",
+    "btn_carte_maj": "Mettre à jour un addon",
+    "btn_carte_desinstaller": "Désinstaller un addon",
+}
+
+
 class BoutonImage:
     """Bouton dessiné sur le canvas : image au repos, image de survol,
     enfoncement de 2 px au clic, état désactivé (image grise, sans action)."""
@@ -382,6 +435,11 @@ class BoutonImage:
         self.enfonce = False
         self._peindre()
         if self.commande:
+            # Le dernier geste du joueur, pour que la fenêtre de plantage
+            # dise « c'est arrivé pendant : Lancer le jeu » plutôt que
+            # « une action du Hub » (programme 23). Un seul endroit à tenir :
+            # tous les boutons du Hub passent par ici.
+            self.app.geste_en_cours = GESTES.get(self.nom, self.nom)
             self.commande()
 
 
@@ -481,8 +539,17 @@ def installer_addon_zip(chemin_zip, jeu, dossier):
 
 def _candidats_registre():
     """Emplacements du launcher Ascension notés dans le registre Windows
-    (clés de désinstallation). LECTURE seule, jamais d'écriture."""
-    import winreg
+    (clés de désinstallation). LECTURE seule, jamais d'écriture.
+
+    ⚠️ `winreg` N'EXISTE PAS hors Windows : sans cette garde, l'import lève
+    ModuleNotFoundError et le bouton « Lancer le jeu » ne fait rien du tout
+    (trouvé par Tetardtek sous Linux, 02/08/2026). C'est la MÊME garde que
+    `compagnon._pistes_launcher` (l. 316-347) : on ne crée pas une deuxième
+    manière de gérer le cas non-Windows, on reprend celle qui existe."""
+    try:
+        import winreg
+    except ImportError:
+        return []                  # pas Windows : aucun registre à lire
     bases = []
     coins = ((winreg.HKEY_CURRENT_USER,
               r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
@@ -518,6 +585,211 @@ def _candidats_registre():
 
 
 # --------------------------------------------------------------------------- #
+# LE PLANTAGE VISIBLE (programme 23, 02/08/2026)
+# --------------------------------------------------------------------------- #
+# LE DÉFAUT QU'ON RÉPARE, MESURÉ. Dans un exe figé en mode fenêtré,
+# `sys.stdout` ET `sys.stderr` valent None. Tkinter attrape toute exception de
+# rappel dans `report_callback_exception`, qui fait `print(..., file=None)`
+# puis `traceback.print_exception` : les deux écrivent dans le vide SANS RIEN
+# LEVER. Un bouton qui plante ne fait donc rien du tout, l'application se
+# ferme ensuite normalement, et le joueur n'a aucune piste. Vrai sous Linux
+# (pas de console) ET sous Windows (pas de console non plus) : les 274.
+#
+# Le garde-fou de PyInstaller (`disable_windowed_traceback=False`) ne suffit
+# pas : il ne se déclenche que pour une exception NON RATTRAPÉE au niveau
+# supérieur — or Tkinter les rattrape toutes —, il n'existe que sous Windows
+# et macOS (documenté dans PyInstaller/building/api.py), et il affiche un
+# traceback Python brut en anglais.
+#
+# Trois portes, parce qu'une exception peut arriver à trois endroits :
+#   1. dans un rappel Tk (un bouton)     -> Hub.report_callback_exception
+#   2. dans un fil de fond (self._fil)   -> threading.excepthook
+#   3. avant/hors la boucle (démarrage)  -> sys.excepthook + le try de main()
+_APPLI = None                # le Hub vivant, pour reposter depuis un fil
+_PLANTAGE_OUVERT = False     # une seule fenêtre à la fois (boucle de plantage)
+
+# Mêmes teintes que les fenêtres filles du Hub (Hub.FOND_F et compagnie), mais
+# au niveau du module : cette fenêtre doit pouvoir s'ouvrir même quand la
+# classe Hub n'a pas fini de se construire.
+PL_FOND = "#efe2c0"
+PL_PANNEAU = "#f7eed6"
+PL_BORD = "#8a6a2a"
+
+
+def montrer_plantage(parent, ou, trace=None):
+    """« Ça a raté, voilà où c'est écrit » — une fenêtre, pas un terminal.
+
+    Le texte s'adresse à un JOUEUR : ce qui s'est passé, ce que ça ne casse
+    pas, où c'est écrit, et quoi faire s'il veut aider. Le relevé est
+    COPIABLE (règle de la maison : jamais un print, toujours du copiable) et
+    déjà anonymisé par `logique.journal_incident`.
+
+    Cette fonction ne doit JAMAIS lever : un gestionnaire de plantage qui
+    plante rend le défaut d'origine indébusquable."""
+    global _PLANTAGE_OUVERT
+    if _PLANTAGE_OUVERT:
+        return
+    if trace is None:
+        trace = traceback.format_exc()
+    chemin = logique.journal_incident(ou, trace)
+    detail = logique._anonymiser(trace).rstrip()
+    try:
+        _PLANTAGE_OUVERT = True
+        _fenetre_plantage(parent, ou, chemin, detail)
+    except Exception:
+        _PLANTAGE_OUVERT = False
+        # Dernier repli : la boîte de dialogue du système. Elle est moche,
+        # mais elle s'affiche là où notre fenêtre a échoué.
+        try:
+            from tkinter import messagebox
+            messagebox.showerror(
+                "AscensionFR — quelque chose a raté",
+                "Le Hub a rencontré un problème pendant : %s.\n\n"
+                "Le détail est écrit dans :\n%s"
+                % (ou, chemin or "(nulle part — le disque a refusé)"))
+        except Exception:
+            pass
+
+
+def _fenetre_plantage(parent, ou, chemin, detail):
+    vivant = False
+    try:
+        vivant = bool(parent) and bool(parent.winfo_exists())
+    except Exception:
+        vivant = False
+    if vivant:
+        f = tk.Toplevel(parent)
+    else:
+        # Le Hub n'existe pas (plantage au démarrage) : on fabrique la seule
+        # fenêtre de l'application. Elle doit donc porter sa propre boucle.
+        f = tk.Tk()
+    f.title("AscensionFR — quelque chose a raté")
+    f.configure(bg=PL_FOND, highlightbackground=PL_BORD,
+                highlightcolor=PL_BORD, highlightthickness=2)
+    f.resizable(False, False)
+    try:
+        f.iconbitmap(logique.ressource("logo.ico"))
+    except Exception:
+        pass                      # X11 ne connaît pas les .ico
+
+    cadre = tk.Frame(f, bg=PL_FOND)
+    cadre.pack(fill="both", expand=True, padx=18, pady=16)
+    tk.Label(cadre, text="Le Hub a rencontré un problème.",
+             bg=PL_FOND, fg="#7e1f10",
+             font=("Segoe UI", 13, "bold")).pack(anchor="w")
+    tk.Label(
+        cadre, bg=PL_FOND, fg=ENCRE, justify="left", wraplength=560,
+        text="Ce n'est pas de ta faute, et rien n'est cassé dans ton jeu.\n"
+             "Tu peux fermer cette fenêtre et continuer à te servir du Hub.\n\n"
+             "C'est arrivé pendant : %s" % ou,
+        font=("Segoe UI", 10)).pack(anchor="w", pady=(8, 10))
+    tk.Label(
+        cadre, bg=PL_FOND, fg=ENCRE_DOUCE, justify="left", wraplength=560,
+        text=("Le détail est écrit dans ce fichier :\n%s" % chemin) if chemin
+        else "Le détail n'a pas pu être écrit sur le disque — il est "
+             "ci-dessous, copie-le avant de fermer.",
+        font=("Segoe UI", 9)).pack(anchor="w")
+
+    boite = tk.Text(cadre, height=9, width=74, wrap="none",
+                    bg=PL_PANNEAU, fg=ENCRE, relief="flat",
+                    highlightbackground=PL_BORD, highlightthickness=1,
+                    font=("Consolas", 9))
+    boite.insert("1.0", detail)
+    boite.configure(state="disabled")
+    boite.pack(fill="both", expand=True, pady=(8, 10))
+
+    tk.Label(
+        cadre, bg=PL_FOND, fg=ENCRE_DOUCE, justify="left", wraplength=560,
+        text="Si tu veux aider à le corriger : « Copier le détail », puis "
+             "colle-le sur le Discord dans le salon d'entraide. Il ne "
+             "contient ni ton pseudo, ni tes mots de passe, ni aucun chemin "
+             "personnel.",
+        font=("Segoe UI", 9)).pack(anchor="w")
+
+    rangee = tk.Frame(cadre, bg=PL_FOND)
+    rangee.pack(fill="x", pady=(12, 0))
+
+    dit = tk.Label(rangee, text="", bg=PL_FOND, fg="#1f5a1c",
+                   font=("Segoe UI", 9))
+
+    def copier():
+        try:
+            f.clipboard_clear()
+            f.clipboard_append(detail)
+            f.update_idletasks()      # sans ça, Windows perd le contenu
+            dit.configure(text="Copié.")
+        except Exception:
+            dit.configure(text="Copie impossible — sélectionne le texte "
+                               "ci-dessus.", fg="#7e1f10")
+
+    def fermer():
+        global _PLANTAGE_OUVERT
+        _PLANTAGE_OUVERT = False
+        try:
+            f.destroy()
+        except Exception:
+            pass
+
+    tk.Button(rangee, text="Copier le détail", command=copier,
+              bg="#e8c25a", fg="#15130c", activebackground="#d9b44e",
+              relief="flat", bd=0, padx=14, pady=6,
+              cursor="hand2").pack(side="left")
+    tk.Button(rangee, text="Fermer", command=fermer,
+              bg="#e6d6ac", fg=ENCRE, activebackground="#dcc998",
+              relief="flat", bd=0, padx=14, pady=6,
+              cursor="hand2").pack(side="left", padx=(8, 0))
+    dit.pack(side="left", padx=(12, 0))
+    f.protocol("WM_DELETE_WINDOW", fermer)
+
+    # Pas de grab_set ici, VOLONTAIREMENT : c'est précisément le piège du
+    # bloc A (« grab failed: window not viewable » sous X11), et une fenêtre
+    # d'erreur qui refuse de s'ouvrir serait le comble.
+    try:
+        f.lift()
+        f.attributes("-topmost", True)
+        f.after(400, lambda: f.attributes("-topmost", False))
+    except tk.TclError:
+        pass
+    if not vivant:
+        f.mainloop()
+
+
+def _sur_rappel_tk(self, exc, val, tb):
+    """Remplace `Tk.report_callback_exception`, qui écrivait dans le vide."""
+    montrer_plantage(self, getattr(self, "geste_en_cours", None)
+                     or "une action du Hub",
+                     "".join(traceback.format_exception(exc, val, tb)))
+
+
+def _sur_fil(args):
+    """Une exception dans un fil de fond (self._fil). Elle ne passe PAS par
+    report_callback_exception : sans ceci, elle disparaît encore plus
+    complètement qu'un rappel — Python l'écrit sur stderr, qui est None."""
+    if args.exc_type is SystemExit:
+        return
+    trace = "".join(traceback.format_exception(
+        args.exc_type, args.exc_value, args.exc_traceback))
+    ou = "une tâche de fond (%s)" % getattr(args.thread, "name", "?")
+    # On écrit la trace TOUT DE SUITE, depuis le fil : si l'interface est
+    # morte, c'est tout ce qu'on aura.
+    logique.journal_incident(ou, trace)
+    appli = _APPLI
+    if appli is None:
+        return
+    try:
+        # On ne touche jamais Tk depuis un fil : on repasse par la boucle.
+        appli.after(0, lambda: montrer_plantage(appli, ou, trace))
+    except Exception:
+        pass
+
+
+def _sur_hors_boucle(exc, val, tb):
+    """Tout le reste : le démarrage, et ce qui échappe aux deux autres."""
+    montrer_plantage(_APPLI, "le démarrage du Hub",
+                     "".join(traceback.format_exception(exc, val, tb)))
+
+
+# --------------------------------------------------------------------------- #
 # L'application
 # --------------------------------------------------------------------------- #
 VUES = ("accueil", "traduction", "voix", "addons", "contribuer")
@@ -526,9 +798,17 @@ M = METRIQUE
 
 
 class Hub(tk.Tk):
+    # Programme 23 : la porte n°1 du plantage visible. Tkinter appelle CETTE
+    # méthode pour toute exception levée dans un rappel — c'est-à-dire pour
+    # tous les boutons du Hub. Celle de Tk écrivait sur `sys.stderr`, qui vaut
+    # None dans un exe fenêtré : tout partait dans le vide.
+    report_callback_exception = _sur_rappel_tk
+
     def __init__(self, demo=None):
         super().__init__()
         self.demo = demo
+        # Ce que le joueur venait de cliquer, pour le nommer s'il plante.
+        self.geste_en_cours = None
         self.title("AscensionFR — Hub")
         self.resizable(False, False)
         self.configure(bg="#0a0a0c")
@@ -782,7 +1062,18 @@ class Hub(tk.Tk):
     def lancer_jeu(self):
         """Lance le LAUNCHER d'Ascension (choix de Dan, 23/07) : c'est lui
         qui vérifie les fichiers du jeu avant de jouer. L'exe du jeu ne sert
-        que de secours si aucun launcher n'est trouvable."""
+        que de secours si aucun launcher n'est trouvable.
+
+        ⚠️ `os.startfile` N'EXISTE QUE SOUS WINDOWS : ailleurs c'est un
+        AttributeError, que `except OSError` ne rattrapait pas. Plutôt que de
+        deviner comment lancer un .exe Windows depuis Linux (Wine ? Lutris ?
+        un préfixe ? — je ne peux rien en éprouver), on le DIT au joueur.
+        Un message honnête vaut mieux qu'un lancement inventé."""
+        if not hasattr(os, "startfile"):
+            self.statut("alerte", "Sur ce système, le Hub ne sait pas lancer "
+                                  "le jeu à ta place — lance-le comme "
+                                  "d'habitude. Tout le reste fonctionne.")
+            return
         candidats = []
         # Le launcher vit deux dossiers au-dessus du jeu :
         # <launcher>\resources\ascension-live (ou \client).
@@ -824,12 +1115,19 @@ class Hub(tk.Tk):
         item = self.canvas.create_text(x, y, anchor=ancre, text=texte,
                                        font=self.p_lien, fill=couleur,
                                        tags=tags)
+
+        def cliquer():
+            # Même raison que dans BoutonImage._relache : nommer le geste
+            # pour la fenêtre de plantage. Le libellé du lien EST la phrase
+            # que le joueur vient de lire (« Vérifier mon installation »).
+            self.geste_en_cours = texte.rstrip(" ↗›»").strip()
+            commande()
         # La couleur de base est MUTABLE (le lien du contrôle passe au rouge
         # ou au vert selon le verdict) : le survol doit rendre la couleur
         # COURANTE en partant, pas celle de la création.
         self._liens_couleur = getattr(self, "_liens_couleur", {})
         self._liens_couleur[item] = couleur
-        self.canvas.tag_bind(item, "<Button-1>", lambda _e: commande())
+        self.canvas.tag_bind(item, "<Button-1>", lambda _e: cliquer())
         self.canvas.tag_bind(item, "<Enter>", lambda _e: (
             self.canvas.itemconfigure(item, fill=survol),
             self.canvas.configure(cursor="hand2")))
@@ -1192,9 +1490,7 @@ class Hub(tk.Tk):
         c.itemconfigure(self.trad_dossier, text=self.jeu or
                         "aucun — choisis-le avec le bouton Changer")
         c.itemconfigure(self.lien_appli,
-                        state="normal" if (self.appli_en_retard
-                                           and self.url_exe
-                                           and self.vue == "traduction")
+                        state="normal" if self._maj_appli_proposable()
                         else "hidden")
         self.statut(fiche["ton"], fiche["statut"].format(**fmt))
         if self.vue == "accueil":
@@ -1310,11 +1606,41 @@ class Hub(tk.Tk):
         # lanceur, interrupteur de /afr). On relance donc le contrôle.
         self._controle_fond()
 
+    def _maj_appli_proposable(self):
+        """Doit-on MONTRER au joueur qu'une nouvelle application l'attend ?
+
+        ⚠️ `logique.remplacement_possible()` EST LA DÉSAMORCE (ajout urgent du
+        programme 23, trouvé par Tetardtek). Sans elle, un joueur Linux se
+        serait vu proposer, dès la prochaine version publiée, le
+        téléchargement de l'exe WINDOWS : `derniere_release()` n'apparie que
+        `EXE_ATTENDU` et ne sait pas choisir par plateforme. On ne PROPOSE pas
+        ce qu'on ne sait pas faire.
+
+        C'est la première des trois barrières — celle que le joueur voit. Les
+        deux autres : `mettre_a_jour_appli` (au bord de l'action) et
+        `logique.lancer_remplacement` (qui refuse net). Une règle NOMMÉE et
+        sans état, pour qu'un banc puisse l'éprouver sans ouvrir de fenêtre."""
+        return bool(self.appli_en_retard
+                    and self.url_exe
+                    and logique.remplacement_possible()
+                    and self.vue == "traduction")
+
     def mettre_a_jour_appli(self):
         """Télécharge le nouvel exe et se fait remplacer (même mécanique
         que le Compagnon v2 : lancer_remplacement échange les fichiers et
         relance). Hors exe figé (essais python), on ouvre la page."""
         if not self.url_exe:
+            return
+        # Deuxième barrière (programme 23). Le lien est déjà caché hors
+        # Windows, mais rien ne dit qu'un autre chemin n'appellera jamais
+        # cette méthode : la garde vit AUSSI ici, au bord de l'action. Et on
+        # ne renvoie pas le joueur dans le vide — la page des versions
+        # existe, elle, sur tous les systèmes.
+        if not logique.remplacement_possible():
+            webbrowser.open(logique.PAGE_RELEASES)
+            self.statut("alerte", "Sur ce système, le Hub ne se met pas à "
+                                  "jour tout seul — la page des versions "
+                                  "vient de s'ouvrir.")
             return
         if not getattr(sys, "frozen", False):
             webbrowser.open(logique.PAGE_RELEASES)
@@ -1585,9 +1911,9 @@ class Hub(tk.Tk):
         c.create_window(cx, M["CATA_Y"], window=self.cv_addons, anchor="nw",
                         tags=t)
         self.defil_addons = 0
-        self.cv_addons.bind(
-            "<MouseWheel>",
-            lambda e: self._defiler_addons(-(e.delta // 120) * 44))
+        lier_molette(
+            self.cv_addons,
+            lambda e: self._defiler_addons(-crans_molette(e) * 44))
         self.cartes = []
         self.boutons_addons = []
         for i, fiche in enumerate(self.catalogue):
@@ -1892,7 +2218,23 @@ class Hub(tk.Tk):
         y = self.winfo_rooty() + max(20, (M["H"] - hauteur) // 2)
         f.geometry("%dx%d+%d+%d" % (largeur, hauteur, x, y))
         f.transient(self)
-        f.grab_set()
+        # ⚠️ `grab_set()` EXIGE UNE FENÊTRE DÉJÀ AFFICHÉE. Sous Windows elle
+        # l'est aussitôt ; sous X11 le gestionnaire de fenêtres la « mappe »
+        # quand il veut, et Tk lève « grab failed: window not viewable » —
+        # le bouton « Vérifier mon installation » ne faisait donc rien du tout
+        # (Tetardtek, 02/08/2026).
+        #
+        # On garde l'essai IMMÉDIAT (sous Windows il réussit, rigoureusement
+        # comme avant), et on ne se rabat sur l'attente que s'il échoue. Au
+        # bout de ~1 s on abandonne SANS bruit : une fenêtre sans grab reste
+        # parfaitement utilisable, une TclError tue le bouton.
+        def prendre_la_main(reste=20):
+            try:
+                f.grab_set()
+            except tk.TclError:
+                if reste and f.winfo_exists():
+                    f.after(50, lambda: prendre_la_main(reste - 1))
+        prendre_la_main()
         return f
 
     def _zone_defilante(self, parent, largeur, hauteur):
@@ -1911,7 +2253,7 @@ class Hub(tk.Tk):
                                       width=largeur)
 
         def molette(evenement):
-            toile.yview_scroll(-1 * (evenement.delta // 120), "units")
+            toile.yview_scroll(-crans_molette(evenement), "units")
 
         def ajuster(_e=None):
             toile.configure(scrollregion=toile.bbox("all"))
@@ -1920,7 +2262,7 @@ class Hub(tk.Tk):
             piles = [dedans]
             while piles:
                 w = piles.pop()
-                w.bind("<MouseWheel>", molette)
+                lier_molette(w, molette)
                 piles.extend(w.winfo_children())
             # La barre ne s'affiche que si elle sert : une barre grise inutile
             # à droite d'une liste de trois lignes fait « c'est compliqué ».
@@ -1939,7 +2281,7 @@ class Hub(tk.Tk):
         # Un bind_all survivrait à la fermeture de la fenêtre et lèverait une
         # TclError à chaque cran de molette dans le Hub, une par fenêtre déjà
         # fermée.
-        toile.bind("<MouseWheel>", molette)
+        lier_molette(toile, molette)
         return dedans
 
     def _bouton(self, parent, texte, commande, accent=False, **kw):
@@ -2233,16 +2575,26 @@ class Hub(tk.Tk):
         self.btn_envoyer = BoutonImage(
             self, "btn_envoyer", cx + 34, y + 220,
             commande=self.envoyer_rapport, tags=t)
+        # LE BOUTON FANTÔME, REPOSÉ (bloc B du programme 23). Le message
+        # d'échec d'envoi renvoyait à « un bouton ci-dessous » qui n'existait
+        # nulle part, et le code copiait à la place le RELEVÉ D'INSTALLATION :
+        # un joueur qui suivait l'instruction collait la mauvaise chose sur le
+        # Discord en croyant bien faire. Le voici, et il copie bien le rapport.
+        self.btn_copier = BoutonImage(
+            self, "btn_copier", cx + 34 + M["BTN_M_W"] + 20, y + 220,
+            commande=self.copier_rapport, tags=t)
+        # Le compteur descend SOUS les deux boutons : il occupait la place où
+        # le second se pose.
         self.contrib_etat = c.create_text(
-            cx + 34 + M["BTN_M_W"] + 20, y + 220 + M["BTN_M_H"] // 2,
+            cx + 34, y + 220 + M["BTN_M_H"] + 22,
             anchor="w", text="", font=self.p_petit, fill=ENCRE_DOUCE,
             tags=t)
-        self.boutons_contribuer = (self.btn_envoyer,)
+        self.boutons_contribuer = (self.btn_envoyer, self.btn_copier)
         self.envoi_en_cours = False
         # Case « envoi automatique » — LA VRAIE case du jeu (UI-CheckBox),
         # plus un « [x] » en note de bas de page : elle commande un envoi de
         # données par défaut, elle doit se voir et se cocher (lot 12, pt 9).
-        y_case = y + 220 + M["BTN_M_H"] + 26
+        y_case = y + 220 + M["BTN_M_H"] + 58
         self.contrib_case = self.decor.poser(c, "case_vide", cx + 30,
                                              y_case - 13, tags=t)
         self.contrib_auto = c.create_text(
@@ -2353,7 +2705,54 @@ class Hub(tk.Tk):
         self.statut("neutre", "Préparation du rapport…")
         self._fil(self._envoyer_fond)
 
+    def copier_rapport(self):
+        """Le repli du bloc B : mettre LE RAPPORT dans le presse-papier.
+
+        Ce n'est pas `copier_diagnostic` — ce sont deux choses différentes, et
+        c'est exactement la confusion qu'on répare : le message d'échec parlait
+        du rapport, le code copiait le relevé d'installation, et le joueur
+        collait la mauvaise chose sur le Discord en croyant bien faire.
+
+        Repris du Compagnon v2 (`compagnon.Compagnon.copier_rapport`), qui est
+        une MÉTHODE de son ancienne interface et non une fonction du moteur :
+        elle ne pouvait pas être appelée telle quelle depuis le Hub. Même
+        règle qu'en v2 : on donne TOUT, même le déjà-envoyé (le joueur peut
+        vouloir montrer son rapport complet), et on ne marque donc rien comme
+        parti — rien ne prouve qu'il collera."""
+        if not logique.jeu_valide(self.jeu):
+            self.statut("alerte", "Choisis d'abord le dossier du jeu, dans "
+                                  "l'onglet Traduction.")
+            return
+        try:
+            rapport, total, _ = logique.construire_rapport(self.jeu)
+        except Exception as e:
+            self.statut("erreur", "Lecture impossible — %s"
+                        % logique.raison_echec(e))
+            return
+        if not total:
+            self.statut("alerte", "Rien à signaler pour l'instant — joue "
+                                  "avec l'addon, puis fais /reload en jeu.")
+            return
+        if not self._copier_texte(rapport):
+            return
+        self.statut("succes", "Rapport copié (%s entrée(s)) — colle-le sur "
+                              "le Discord avec Ctrl+V."
+                    % "{:,}".format(total).replace(",", " "))
+
+    def _copier_texte(self, texte):
+        """Le presse-papier, en un seul endroit. Rend False si ça a raté —
+        et le dit, au lieu de laisser croire que c'est copié."""
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(texte)
+            self.update_idletasks()      # sans ça, Windows perd le contenu
+            return True
+        except Exception:
+            self.statut("erreur", "Copie impossible sur ce système.")
+            return False
+
     def _envoyer_fond(self):
+        rapport = None
         try:
             deja = logique.deja_envoyees()
             rapport, nombre, empreintes = logique.construire_rapport(
@@ -2374,12 +2773,23 @@ class Hub(tk.Tk):
             logique.envoyer_rapport_discord(rapport, caches)
             logique.noter_envoyees(self.cfg, empreintes)
         except Exception as e:
+            # BLOC B DU PROGRAMME 23 — le message et le geste disent enfin la
+            # MÊME chose. Avant : le texte renvoyait à « un bouton ci-dessous »
+            # qui n'existait pas, et le code copiait `copier_diagnostic`,
+            # c'est-à-dire le RELEVÉ D'INSTALLATION — pas le rapport. Le
+            # joueur qui suivait l'instruction collait la mauvaise chose.
+            # Maintenant : le bouton existe (btn_copier), et c'est bien le
+            # rapport qui part dans le presse-papier — comme le faisait déjà
+            # le Compagnon v2 (`_envoi_rate`).
+            if rapport:
+                self._sur_canvas(self._copier_texte, rapport)
+                suite = ("  Ton rapport a été COPIÉ à la place : colle-le "
+                         "sur le Discord (Ctrl+V).")
+            else:
+                suite = ("  Réessaie, ou clique « Copier mon rapport » pour "
+                         "le coller toi-même sur le Discord.")
             self._sur_canvas(self._apres_envoi, "horsligne",
-                             logique.raison_echec(e)
-                             + "  Tu peux aussi copier le rapport "
-                               "(bouton ci-dessous) et le coller sur "
-                               "le Discord.")
-            self._sur_canvas(self.copier_diagnostic, True)
+                             logique.raison_echec(e) + suite)
             return
         self._sur_canvas(self._apres_envoi, "reussi",
                          "Rapport envoyé — merci pour le coup de main !")
@@ -2426,11 +2836,23 @@ class Hub(tk.Tk):
 
 
 # --------------------------------------------------------------------------- #
+def _panne_de_fil():
+    """Cible de `--planter fil` : la panne arrive dans un fil de fond, là où
+    aucun rappel Tk ne peut l'attraper."""
+    raise RuntimeError("panne d'essai dans un fil de fond (--planter fil)")
+
+
 def main():
+    global _APPLI
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
         pass
+    # Les portes n°2 et n°3 du plantage visible (programme 23). Posées AVANT
+    # toute construction : un décor manquant, un assets/ pas embarqué, une
+    # dépendance absente lèvent ici, et c'est le pire moment pour être muet.
+    sys.excepthook = _sur_hors_boucle
+    threading.excepthook = _sur_fil
     args = sys.argv[1:]
     demo = None
     capture = None
@@ -2440,7 +2862,28 @@ def main():
     if "--capture" in args:
         i = args.index("--capture")
         capture = args[i + 1] if i + 1 < len(args) else "hub.png"
+    # Une panne d'essai, exprès, pour prouver que le joueur voit bien quelque
+    # chose. `--planter rappel` casse un bouton, `--planter demarrage` casse
+    # la construction, `--planter fil` casse une tâche de fond : les trois
+    # portes. C'est le banc du bloc C — il ne s'active QUE sur l'option.
+    planter = None
+    if "--planter" in args:
+        i = args.index("--planter")
+        planter = args[i + 1] if i + 1 < len(args) else "rappel"
+    if planter == "demarrage":
+        raise RuntimeError("panne d'essai au démarrage (--planter demarrage)")
     app = Hub(demo=demo)
+    _APPLI = app
+    if planter == "rappel":
+        def panne_de_rappel():
+            # On se met dans l'état où était le joueur de Tetardtek : il
+            # venait de cliquer « Lancer le jeu ».
+            app.geste_en_cours = "Lancer le jeu"
+            raise RuntimeError("panne d'essai dans un rappel (--planter "
+                               "rappel)")
+        app.after(1200, panne_de_rappel)
+    elif planter == "fil":
+        app.after(1200, lambda: app._fil(_panne_de_fil))
     if demo:
         app.montrer_vue(demo if demo in VUES else "accueil")
     if capture:
