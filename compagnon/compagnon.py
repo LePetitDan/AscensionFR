@@ -96,6 +96,12 @@ TEMOIN_VOIX = os.path.join("Sound", "CREATURE", "SylvanasWindrunner",
                            "Sylvanas_WoundCritical01.wav")
 ZIP_ATTENDU = "AscensionFR_manuel.zip"
 EXE_ATTENDU = "AscensionFR_Compagnon.exe"
+# L'application publiée POUR CETTE PLATEFORME. Depuis la 3.4.1 la release
+# porte deux programmes — l'exe Windows et le binaire Linux du workflow
+# Actions — et il faut désigner le bon : sous Windows c'est EXE_ATTENDU, mot
+# pour mot, donc rien ne change de ce côté.
+ASSET_APPLICATION = plateforme.nom_asset_application(EXE_ATTENDU)
+SUFFIXE_APPLICATION = plateforme.suffixe_application()
 UA = {"User-Agent": "AscensionFR-Compagnon"}
 
 # Palette « launcher moderne » : sombre, plat, une seule touche d'or — le
@@ -503,7 +509,7 @@ def derniere_release():
     for asset in infos.get("assets", []):
         if asset.get("name") == ZIP_ATTENDU:
             url_zip = asset.get("browser_download_url")
-        elif asset.get("name") == EXE_ATTENDU:
+        elif asset.get("name") == ASSET_APPLICATION:
             url_exe = asset.get("browser_download_url")
     return version, url_zip, url_exe
 
@@ -595,7 +601,7 @@ def telecharger_fichier(url, progres=None, suffixe=".zip",
                 if not bloc:
                     break
                 if not debut:
-                    debut = bloc[:2]
+                    debut = bloc[:4]      # 2 pour « MZ », 4 pour « \x7fELF »
                 f.write(bloc)
                 empreinte.update(bloc)
                 fait += len(bloc)
@@ -624,6 +630,15 @@ def verifier_telechargement(chemin, suffixe, debut, empreinte,
     if suffixe == ".exe" and debut[:2] != b"MZ":
         raise ValueError(
             "le fichier téléchargé n'est pas un programme Windows. Le "
+            "téléchargement a été interrompu, ou un équipement réseau a "
+            "renvoyé une page d'erreur à la place — réessaie dans un "
+            "instant.")
+    # Même garde pour le binaire Linux, qui ne commence évidemment pas par
+    # « MZ » : sans elle, l'application publiée pour Linux serait la seule à
+    # n'avoir aucun contrôle de forme, et une page d'erreur HTML passerait.
+    if suffixe == ".bin" and debut[:4] != b"\x7fELF":
+        raise ValueError(
+            "le fichier téléchargé n'est pas un programme Linux. Le "
             "téléchargement a été interrompu, ou un équipement réseau a "
             "renvoyé une page d'erreur à la place — réessaie dans un "
             "instant.")
@@ -2325,8 +2340,9 @@ class Compagnon(ctk.CTk):
             try:
                 # La référence vient des MÉTADONNÉES de la release, pas du
                 # fichier qu'on s'apprête à télécharger (programme 9).
-                sha, taille = reference_asset(EXE_ATTENDU)
-                nouveau = telecharger_fichier(self.url_exe, progres, ".exe",
+                sha, taille = reference_asset(ASSET_APPLICATION)
+                nouveau = telecharger_fichier(self.url_exe, progres,
+                                              SUFFIXE_APPLICATION,
                                               sha256_attendu=sha,
                                               taille_attendue=taille)
                 self.after(0, lambda n=nouveau: self._redemarrer_avec(n))

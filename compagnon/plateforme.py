@@ -17,6 +17,7 @@ Aucune dépendance tierce : ce module se contente de la bibliothèque standard.
 import glob
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -216,3 +217,156 @@ def lancer(chemin, prefixe_hint=None):
     if wine:
         return _essayer([wine, chemin])
     return False
+
+
+# --------------------------------------------------------------------------- #
+# Mise à jour de l'application elle-même
+# --------------------------------------------------------------------------- #
+# La release publie DEUX applications : l'exe Windows et le binaire Linux
+# construit par le workflow Actions. Sans la résolution ci-dessous, le Hub
+# cherche « AscensionFR_Compagnon.exe » quelle que soit la plateforme — donc
+# un joueur Linux se voit proposer, et télécharger, un programme Windows.
+ASSET_APPLICATION_LINUX = "AscensionFR_Hub-linux-x86_64"
+
+
+def nom_asset_application(nom_windows):
+    """Nom de l'asset de release qui contient L'APPLICATION pour cette
+    plateforme. Sous Windows, rend exactement le nom d'origine — le
+    comportement historique est strictement conservé."""
+    if EST_LINUX:
+        return ASSET_APPLICATION_LINUX
+    return nom_windows
+
+
+def suffixe_application():
+    """Suffixe du fichier temporaire de téléchargement. Il n'est pas
+    cosmétique : verifier_telechargement s'en sert pour choisir le contrôle
+    de FORME (« ce fichier est-il vraiment un programme, ou une page d'erreur
+    servie à sa place ? »). Un binaire Linux n'est pas un .exe et ne commence
+    pas par MZ, d'où un suffixe distinct plutôt qu'un contrôle désactivé."""
+    return ".bin" if EST_LINUX else ".exe"
+
+
+def remplacement_possible():
+    """L'application peut-elle se remplacer elle-même, ici et maintenant ?
+
+    Non hors Linux (Windows a son propre relais, qu'on ne touche pas), et non
+    quand on tourne depuis les sources : `sys.executable` désigne alors
+    l'interpréteur, et on écraserait /usr/bin/python3. Dans ce dernier cas
+    l'appelant doit dire au joueur de mettre à jour son dépôt."""
+    return EST_LINUX and bool(getattr(sys, "frozen", False))
+
+
+def remplacer_application(nouveau, cible):
+    """Installe `nouveau` à la place de `cible`, puis relance l'application.
+
+    Ne rend la main QUE si quelque chose a échoué (voir la relance, en fin de
+    fonction) ; lève alors une exception au message lisible.
+
+    Pourquoi c'est plus court que le relais Windows, et pas moins sûr :
+    Windows verrouille l'exécutable d'un processus en cours, d'où le script
+    relais qui attend la fermeture, échange les fichiers et relance. Sous
+    Linux un processus tient son INODE, pas son chemin : on peut remplacer le
+    fichier pendant qu'il tourne, le processus vivant n'est pas dérangé et le
+    lancement suivant prend la nouvelle version.
+
+    Les quatre pièges traités, dans l'ordre où ils mordent :
+
+    1. `os.replace` n'est atomique que SUR LE MÊME SYSTÈME DE FICHIERS. Le
+       téléchargement vit dans /tmp, qui est très souvent une partition
+       distincte (tmpfs, ou /home chiffré à part) — l'échange direct
+       échouerait par EXDEV. On amène donc d'abord le fichier à côté de sa
+       cible, seule opération qui a le droit d'être lente.
+
+    2. Un fichier de `tempfile.mkstemp` naît en 0600 : SANS DROIT
+       D'EXÉCUTION. Remplacer le binaire sans rétablir ses droits produit une
+       mise à jour qui « réussit » et une application qui ne démarre plus
+       jamais. On recopie donc les droits de l'ancien binaire.
+
+    3. Il ne doit exister AUCUN instant sans application sur le disque —
+       c'est le défaut corrigé côté Windows, et il serait absurde de le
+       réintroduire ici. D'où un lien dur vers l'ancien binaire (instantané,
+       ne copie pas les 39 Mo) AVANT l'unique remplacement atomique. Si les
+       liens durs sont refusés (certains montages FUSE), on recopie.
+
+    4. La nouvelle version peut être cassée. `.ancien` reste sur le disque :
+       le joueur récupère son application d'un simple renommage, et la mise à
+       jour suivante l'écrase de toute façon.
+    """
+    if not remplacement_possible():
+        raise RuntimeError(
+            "cette copie n'est pas un programme autonome : mets-la à jour "
+            "avec « git pull » dans le dossier du dépôt.")
+    cible = os.path.realpath(cible)
+    dossier = os.path.dirname(cible)
+    if not os.access(dossier, os.W_OK):
+        raise PermissionError(
+            "le dossier « %s » est en lecture seule : déplace l'application "
+            "dans un dossier qui t'appartient, ou télécharge la nouvelle "
+            "version à la main." % dossier)
+
+    # 1. amener le nouveau fichier sur le système de fichiers de la cible
+    provisoire = os.path.join(dossier, "." + os.path.basename(cible) + ".neuf")
+    shutil.move(nouveau, provisoire)
+    try:
+        # 2. droits d'exécution — repris de l'ancien binaire
+        os.chmod(provisoire, os.stat(cible).st_mode & 0o7777)
+
+        # 3. filet AVANT l'échange, jamais après
+        ancien = cible + ".ancien"
+        if os.path.exists(ancien):
+            os.remove(ancien)
+        try:
+            os.link(cible, ancien)
+        except OSError:
+            shutil.copy2(cible, ancien)
+
+        os.replace(provisoire, cible)      # l'unique instant qui compte
+    except BaseException:
+        try:
+            os.remove(provisoire)
+        except OSError:
+            pass
+        raise
+
+    _relancer(cible, ancien)
+
+
+def _relancer(cible, ancien):
+    """Remplace le processus courant par la nouvelle application.
+
+    Le nettoyage d'environnement ci-dessous n'est pas une précaution de
+    principe : SANS LUI, LA NOUVELLE VERSION NE DÉMARRE PAS. Constaté à
+    l'essai, sur de vrais binaires empaquetés.
+
+    Une application empaquetée en un seul fichier, c'est en réalité DEUX
+    processus : un lanceur, qui déballe le contenu dans un dossier temporaire,
+    puis l'application elle-même. Le lanceur transmet au second, par variables
+    d'environnement (_PYI_APPLICATION_HOME_DIR, _PYI_PARENT_PROCESS_LEVEL…),
+    l'endroit du déballage et le fait qu'il a déjà eu lieu.
+
+    Si on relance la NOUVELLE version en lui laissant ces variables, elle se
+    croit l'ancienne : elle va chercher ses fichiers dans le déballage de la
+    précédente, et meurt sur « Failed to load Python shared library ». On les
+    retire donc pour qu'elle se déballe normalement, comme à un lancement
+    ordinaire.
+
+    Corollaire, dans l'autre sens : il ne faut PAS effacer soi-même le dossier
+    de déballage. Le lanceur, lui, n'est pas remplacé par os.execve — il reste
+    vivant et fait le ménage quand l'application se termine.
+
+    os.execve ne revient jamais quand il réussit : la suite de cette fonction
+    n'est atteinte QUE si la nouvelle version refuse de démarrer. C'est donc
+    exactement là qu'il faut remettre l'ancienne."""
+    env = {cle: valeur for cle, valeur in os.environ.items()
+           if not cle.startswith("_PYI") and not cle.startswith("_MEIPASS")}
+    try:
+        os.execve(cible, [cible] + sys.argv[1:], env)
+    except OSError as err:
+        try:
+            os.replace(ancien, cible)      # la nouvelle ne démarre pas
+        except OSError:
+            pass
+        raise RuntimeError(
+            "la nouvelle version n'a pas pu être lancée (%s). L'ancienne a "
+            "été remise en place — relance l'application." % err)
