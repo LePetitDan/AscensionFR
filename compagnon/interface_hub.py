@@ -677,11 +677,17 @@ def _fenetre_plantage(parent, ou, chemin, detail):
     tk.Label(cadre, text="Le Hub a rencontré un problème.",
              bg=PL_FOND, fg="#7e1f10",
              font=("Segoe UI", 13, "bold")).pack(anchor="w")
+    # Le Hub existe-t-il encore derrière ? La phrase change — dire « continue
+    # à te servir du Hub » alors qu'il n'a pas pu démarrer serait un mensonge,
+    # et c'est précisément le cas où le joueur a le plus besoin d'être guidé.
+    suite = ("Tu peux fermer cette fenêtre et continuer à te servir du Hub."
+             if vivant else
+             "Le Hub n'a pas pu démarrer. Ferme cette fenêtre, puis "
+             "réessaie ; si ça recommence, envoie-nous le détail ci-dessous.")
     tk.Label(
         cadre, bg=PL_FOND, fg=ENCRE, justify="left", wraplength=560,
         text="Ce n'est pas de ta faute, et rien n'est cassé dans ton jeu.\n"
-             "Tu peux fermer cette fenêtre et continuer à te servir du Hub.\n\n"
-             "C'est arrivé pendant : %s" % ou,
+             + suite + "\n\nC'est arrivé pendant : %s" % ou,
         font=("Segoe UI", 10)).pack(anchor="w", pady=(8, 10))
     tk.Label(
         cadre, bg=PL_FOND, fg=ENCRE_DOUCE, justify="left", wraplength=560,
@@ -2843,6 +2849,20 @@ def _panne_de_fil():
 
 
 def main():
+    """L'enveloppe. RIEN ne doit remonter au-dessus d'ici.
+
+    Sinon, sous Windows, PyInstaller affiche SA boîte — « Unhandled exception
+    in script », en anglais, avec le traceback brut — par-dessus la nôtre :
+    deux fenêtres pour un seul défaut, et c'est la moins lisible qui reste en
+    mémoire. Sous Linux il n'affiche rien du tout. Une seule fenêtre, la
+    nôtre, sur les deux systèmes."""
+    try:
+        _main()
+    except Exception:
+        montrer_plantage(_APPLI, "le démarrage du Hub")
+
+
+def _main():
     global _APPLI
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
