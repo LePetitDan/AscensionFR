@@ -1349,7 +1349,7 @@ class Hub(tk.Tk):
         self._sur_canvas(self._remplacer_appli, chemin)
 
     def _remplacer_appli(self, chemin):
-        if plateforme.remplacement_possible():
+        if plateforme.peut_remplacer_sur_place():
             # Linux : aucun relais à orchestrer. Le fichier s'échange sous le
             # processus qui tourne, et l'application se relance elle-même —
             # remplacer_application ne rend donc la main qu'en cas d'échec, et

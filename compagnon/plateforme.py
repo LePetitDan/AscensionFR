@@ -38,15 +38,24 @@ def dossier_config(app):
     Corrige un vrai piège : le code d'origine faisait
     `os.environ.get("APPDATA", ".")` — or APPDATA est ABSENT sous Linux, donc
     la config atterrissait dans le dossier courant (là où l'appli est lancée),
-    éparpillée et perdue au prochain lancement depuis un autre dossier."""
+    éparpillée et perdue au prochain lancement depuis un autre dossier.
+
+    Le repli sur "." vient de la version de Dan (programme 23) et couvre un cas
+    que celle-ci ne voyait pas : `expanduser` rend "~" TEL QUEL quand il n'a
+    pas su résoudre le foyer (ni HOME, ni entrée passwd — cela arrive dans un
+    service ou un conteneur). Sans lui, on fabriquerait un dossier réellement
+    nommé « ~ » à l'endroit d'où l'application a été lancée."""
+    maison = os.path.expanduser("~")
+    if maison == "~":                       # foyer non résolu
+        maison = None
     if EST_WINDOWS:
-        base = os.environ.get("APPDATA") or os.path.expanduser("~")
+        base = os.environ.get("APPDATA") or maison or "."
     elif EST_MAC:
-        base = os.path.join(os.path.expanduser("~"), "Library",
-                            "Application Support")
+        base = (os.path.join(maison, "Library", "Application Support")
+                if maison else ".")
     else:
         base = (os.environ.get("XDG_CONFIG_HOME")
-                or os.path.join(os.path.expanduser("~"), ".config"))
+                or (os.path.join(maison, ".config") if maison else "."))
     return os.path.join(base, app)
 
 
@@ -247,11 +256,18 @@ def suffixe_application():
     return ".bin" if EST_LINUX else ".exe"
 
 
-def remplacement_possible():
-    """L'application peut-elle se remplacer elle-même, ici et maintenant ?
+def peut_remplacer_sur_place():
+    """Ce système sait-il échanger le binaire de l'application PENDANT qu'elle
+    tourne ?
 
-    Non hors Linux (Windows a son propre relais, qu'on ne touche pas), et non
-    quand on tourne depuis les sources : `sys.executable` désigne alors
+    C'est une question de SYSTÈME, pas de politique : elle dit ce que la
+    machine sait faire, pas ce que l'application doit proposer au joueur. La
+    décision, elle, appartient à `compagnon.remplacement_possible()`, qui
+    interroge cette fonction — d'où deux noms distincts pour deux questions
+    distinctes.
+
+    Non hors Linux (Windows a son relais, qu'on ne touche pas), et non quand
+    on tourne depuis les sources : `sys.executable` désigne alors
     l'interpréteur, et on écraserait /usr/bin/python3. Dans ce dernier cas
     l'appelant doit dire au joueur de mettre à jour son dépôt."""
     return EST_LINUX and bool(getattr(sys, "frozen", False))
@@ -293,7 +309,7 @@ def remplacer_application(nouveau, cible):
        le joueur récupère son application d'un simple renommage, et la mise à
        jour suivante l'écrase de toute façon.
     """
-    if not remplacement_possible():
+    if not peut_remplacer_sur_place():
         raise RuntimeError(
             "cette copie n'est pas un programme autonome : mets-la à jour "
             "avec « git pull » dans le dossier du dépôt.")
