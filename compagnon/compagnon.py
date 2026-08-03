@@ -31,6 +31,7 @@ import sys
 import tempfile
 import threading
 import time
+import traceback
 import urllib.error
 import urllib.request
 import webbrowser
@@ -64,7 +65,7 @@ PAGE_RELEASES = "https://github.com/" + DEPOT + "/releases"
 # infinie du 25-28/07 : le Hub comparait le .toc au tag et proposait la mise à
 # jour pour toujours. verifier_tout.py et publier_github.py refusent tout
 # écart, sans option pour passer outre.
-VERSION_COMPAGNON = "3.4.1"
+VERSION_COMPAGNON = "3.4.2"
 
 # Salon des rapports : URL du webhook Discord (fournie par le mainteneur).
 # VIDE -> le bouton « Envoyer » n'existe pas, seul « Copier » reste (aucun
@@ -122,8 +123,134 @@ ORANGE = "#e8a33d"
 ROUGE = "#e05252"
 
 # Dossier de config selon l'OS (%APPDATA% sous Windows, ~/.config sous Linux).
+#
+# Le programme 23 avait ajouté ici un _dossier_config() qui répond à la même
+# question. Il est retiré au profit de plateforme.dossier_config(), pour une
+# raison précise : il testait APPDATA EN PREMIER, quelle que soit la
+# plateforme — or un joueur Linux qui a APPDATA dans son environnement (cela
+# arrive quand on bricole avec Wine) aurait vu sa configuration partir dans un
+# chemin Windows. La couche plateforme interroge le système d'abord.
+#
+# Son repli, lui, était meilleur et il a été REPRIS dans plateforme.py :
+# expanduser rend « ~ » tel quel quand il ne sait pas résoudre le foyer, et on
+# fabriquait alors un dossier réellement nommé « ~ ».
 CONFIG_DIR = plateforme.dossier_config("AscensionFR")
 CONFIG = os.path.join(CONFIG_DIR, "compagnon.json")
+
+# --------------------------------------------------------------------------- #
+# Journal d'incident — « ça a raté, et voilà où c'est écrit »
+# --------------------------------------------------------------------------- #
+# POURQUOI (programme 23, 02/08/2026). Mesuré, pas supposé : dans un exe figé
+# en mode fenêtré, `sys.stdout` ET `sys.stderr` valent None. Tkinter attrape
+# toute exception de rappel et l'envoie à `traceback.print_exception`, qui
+# écrit dans le vide sans rien lever. Résultat : un bouton du Hub qui plante
+# ne fait RIEN — pas un message, pas une trace, et l'application se ferme
+# normalement. C'est vrai sous Linux ET sous Windows.
+#
+# ⚠️ CE QU'UNE TRACE NE DOIT JAMAIS PORTER. Un journal d'erreur finit collé
+# sur le Discord par un joueur qui veut aider. Il est donc écrit en partant de
+# là : `_anonymiser` retire le webhook, le nom d'utilisateur du système, le
+# nom de compte WoW et le dossier temporaire du paquet. Rien n'y entre qui ne
+# puisse être lu par n'importe qui.
+FICHIER_INCIDENT = "AscensionFR_incident.log"
+TAILLE_INCIDENT_MAX = 200_000        # au-delà, on repart de zéro
+
+
+def dossier_journal():
+    """Le dossier où poser une trace d'échec.
+
+    Le projet en a DÉJÀ un : le relais de mise à jour écrit
+    `AscensionFR_maj_echec.log` À CÔTÉ DU PROGRAMME (voir
+    `lancer_remplacement`). On reprend le même endroit — c'est là que le
+    joueur qui vient de double-cliquer ira regarder — avec CONFIG_DIR en
+    repli quand ce dossier n'est pas inscriptible (Program Files, /opt, un
+    binaire posé sur une clé en lecture seule)."""
+    if getattr(sys, "frozen", False):
+        candidats = [os.path.dirname(os.path.abspath(sys.executable))]
+    else:
+        candidats = [os.path.dirname(os.path.abspath(__file__))]
+    candidats.append(CONFIG_DIR)
+    for dossier in candidats:
+        try:
+            os.makedirs(dossier, exist_ok=True)
+            temoin = os.path.join(dossier, ".afr_ecriture")
+            with open(temoin, "w") as f:
+                f.write("")
+            os.remove(temoin)
+            return dossier
+        except OSError:
+            continue
+    return None
+
+
+_RE_WEBHOOK = re.compile(
+    r"https?://(?:\w+\.)?discord(?:app)?\.com/api/webhooks/\S*",
+    re.IGNORECASE)
+# …\WTF\Account\<COMPTE>\… : le nom de compte WoW EST un identifiant de joueur.
+_RE_COMPTE_WOW = re.compile(r"(?i)(WTF[\\/]+Account[\\/]+)[^\\/\r\n\"']+")
+
+
+def _anonymiser(texte):
+    """Retire d'une trace tout ce qui ne doit jamais voyager.
+
+    Ordre volontaire : du plus long au plus court, sinon un remplacement
+    court coupe un chemin en deux et le suivant ne reconnaît plus rien
+    (le piège des passes de vocabulaire, appliqué ici)."""
+    if not texte:
+        return texte
+    if WEBHOOK_RAPPORTS:
+        texte = texte.replace(WEBHOOK_RAPPORTS, "<webhook>")
+    # …et tout autre webhook Discord, y compris un que nous n'aurions pas posé.
+    texte = _RE_WEBHOOK.sub("<webhook>", texte)
+    texte = _RE_COMPTE_WOW.sub(r"\1<compte>", texte)
+    # Le dossier temporaire du paquet PyInstaller contient le nom de session.
+    paquet = getattr(sys, "_MEIPASS", "")
+    if paquet:
+        texte = texte.replace(paquet, "<paquet>")
+    maison = os.path.expanduser("~")
+    if maison and maison != "~":
+        texte = texte.replace(maison, "<maison>")
+    # Le nom d'utilisateur tout seul (« KeyError: 'Jerome' », un chemin écrit
+    # d'une autre façon). Pas de \b : après un souligné il ne voit aucune
+    # frontière et raterait en silence — le piège déjà payé au programme 6.
+    for cle in ("USERNAME", "USER", "LOGNAME"):
+        nom = os.environ.get(cle, "")
+        if len(nom) >= 3:
+            texte = re.sub(re.escape(nom), "<joueur>", texte,
+                           flags=re.IGNORECASE)
+    return texte
+
+
+def journal_incident(ou, trace=None):
+    """Écrit UNE trace d'échec et rend le chemin du fichier (None si même ça
+    a raté — on ne plante jamais dans le gestionnaire de plantage).
+
+    `ou`    : ce que le joueur était en train de faire (« Lancer le jeu »).
+    `trace` : le texte du traceback ; à défaut, celui de l'exception courante.
+    """
+    try:
+        if trace is None:
+            trace = traceback.format_exc()
+        dossier = dossier_journal()
+        if not dossier:
+            return None
+        chemin = os.path.join(dossier, FICHIER_INCIDENT)
+        try:
+            if os.path.getsize(chemin) > TAILLE_INCIDENT_MAX:
+                os.remove(chemin)      # une boucle de plantages ne remplit
+        except OSError:                # pas le disque du joueur
+            pass
+        bloc = ("\n" + "=" * 70 + "\n"
+                + "[%s] Hub %s — %s\n"
+                % (time.strftime("%d/%m/%Y %H:%M:%S"), VERSION_COMPAGNON,
+                   platform.platform())
+                + "Pendant : %s\n" % ou
+                + _anonymiser(trace).rstrip() + "\n")
+        with open(chemin, "a", encoding="utf-8", errors="replace") as f:
+            f.write(bloc)
+        return chemin
+    except Exception:
+        return None
 
 
 def ressource(nom):
@@ -662,6 +789,48 @@ def installer_zip(chemin_zip, jeu):
     os.remove(chemin_zip)
 
 
+def remplacement_possible():
+    """L'auto-mise à jour de l'APPLICATION est-elle praticable ici ?
+
+    ⚠️ AJOUT URGENT DU PROGRAMME 23 (02/08/2026), trouvé par Tetardtek.
+    Deux raisons, et une seule suffirait :
+
+      1. le relais de remplacement est un **.bat lancé par cmd.exe**
+         (`lancer_remplacement` ci-dessous) — il n'existe pas ailleurs ;
+      2. l'asset publié sous le nom `EXE_ATTENDU` est un **exécutable
+         Windows**, et `derniere_release()` ne sait pas choisir par
+         plateforme : sous Linux, `url_exe` désignait donc l'exe Windows.
+
+    Le défaut dormait : la 3.4.1 étant la dernière publiée, aucun Hub n'était
+    « en retard ». Il se serait armé à la PREMIÈRE publication suivante — un
+    joueur Linux se serait vu proposer la mise à jour, aurait téléchargé ~40 Mo
+    d'exe Windows, et le relais l'aurait passé à `cmd`. Aujourd'hui ça échoue
+    par CHANCE (`creationflags` n'existe pas hors Windows et lève un
+    ValueError, rattrapé plus haut) — la chance n'est pas un garde-fou.
+
+    Cette fonction est le seul endroit où la question se pose. Quand le choix
+    de l'asset par plateforme arrivera (PR de Tetardtek), c'est ICI qu'il
+    faudra élargir, pas dans l'interface.
+
+    ─── L'ÉLARGISSEMENT ANNONCÉ CI-DESSUS, une fois les deux raisons levées :
+
+      1. le choix de l'asset par plateforme existe (ASSET_APPLICATION) — sous
+         Linux, `url_exe` désigne bien le binaire Linux et plus l'exe Windows ;
+      2. le remplacement ne passe plus par un .bat : sous Linux le processus
+         tient son inode, pas son chemin, et `plateforme.remplacer_application`
+         échange le fichier pendant qu'il tourne.
+
+    La garde n'est donc pas doublée, elle est REMPLACÉE : c'est toujours cette
+    fonction, seule, qui décide — les trois barrières du Hub restent les trois
+    barrières. `peut_remplacer_sur_place()` répond « non » hors Linux et hors
+    programme figé (sur les sources, `sys.executable` désigne l'interpréteur :
+    on écraserait /usr/bin/python3).
+
+    Éprouvé en conditions réelles le 03/08/2026 : 3.4.1 → 3.4.2 par ce chemin,
+    empreinte du binaire installé identique à celle de l'asset publié."""
+    return os.name == "nt" or plateforme.peut_remplacer_sur_place()
+
+
 def lancer_remplacement(nouveau, cible):
     """Auto-mise à jour du Compagnon : un programme ne peut pas s'écraser
     lui-même pendant qu'il tourne. On confie donc l'échange à un minuscule
@@ -698,6 +867,23 @@ def lancer_remplacement(nouveau, cible):
     Chemin d'échec : on remet l'ancien en place, on le relance, et on écrit
     un journal à côté du Compagnon. Le relais ne s'efface QUE s'il a réussi.
     """
+    # Le garde-fou qui MORD, plutôt que l'échec par chance. Sans lui, ce
+    # chemin ne ratait sous Linux que parce que `creationflags` lève — et
+    # quiconque « corrigerait » cette ligne un jour ferait écraser le binaire
+    # Linux du joueur par un .exe Windows, c'est-à-dire le laisserait sans Hub
+    # du tout : exactement le défaut que le programme 9 a réparé.
+    #
+    # ⚠️ CE GARDE TESTE WINDOWS, PAS `remplacement_possible()`. Il le faisait
+    # avant cette PR, et c'était juste tant que les deux voulaient dire la
+    # même chose. Ce n'est plus le cas : `remplacement_possible()` répond
+    # maintenant oui sous Linux aussi, où le remplacement se fait sans relais
+    # ni .bat. Garder l'ancien test ici aurait DÉSARMÉ ce garde-fou pour
+    # exactement la plateforme qu'il protège.
+    if os.name != "nt":
+        raise RuntimeError(
+            "ce relais de remplacement n'existe que sous Windows (c'est un "
+            ".bat lancé par cmd) — sous Linux, l'échange passe par "
+            "plateforme.remplacer_application")
     ancien = cible + ".ancien"
     journal = os.path.join(os.path.dirname(cible) or ".",
                            "AscensionFR_maj_echec.log")
@@ -2303,15 +2489,24 @@ class Compagnon(ctk.CTk):
 
     def _relancer_admin(self):
         """Redémarre l'appli avec les droits administrateur (fenêtre UAC de
-        Windows), pour pouvoir écrire dans Program Files."""
+        Windows), pour pouvoir écrire dans Program Files.
+
+        Cette interface v2 n'est plus celle qui est distribuée (le Hub l'a
+        remplacée), mais elle vit dans un fichier surveillé et le balayage du
+        programme 23 l'a trouvée sans garde : `ctypes.windll` lève un
+        AttributeError hors Windows. Un seul `except` plutôt qu'un défaut
+        laissé derrière soi."""
         import ctypes
         if getattr(sys, "frozen", False):
             programme, arguments = sys.executable, ""
         else:                              # mode script (développement)
             programme = sys.executable
             arguments = '"%s"' % os.path.abspath(__file__)
-        r = ctypes.windll.shell32.ShellExecuteW(
-            None, "runas", programme, arguments, None, 1)
+        try:
+            r = ctypes.windll.shell32.ShellExecuteW(
+                None, "runas", programme, arguments, None, 1)
+        except Exception:
+            r = 0                          # traité comme un refus, ci-dessous
         if r <= 32:                        # UAC refusé ou échec du lancement
             self.etat("Élévation refusée — tu peux aussi faire clic droit "
                       "sur le Compagnon → « Exécuter en tant "
