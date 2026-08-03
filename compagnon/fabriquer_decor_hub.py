@@ -458,6 +458,17 @@ def fabriquer_boutons():
     bouton_rouge("btn_envoyer_gris", M["BTN_M_W"], M["BTN_M_H"],
                  "Envoyer mon rapport", px=17, survol=False, etat="off",
                  couleur=GRIS_INACTIF)
+    # LE BOUTON FANTÔME (bloc B du programme 23, 02/08/2026). Quand un envoi
+    # ratait, le Hub écrivait « copie le rapport (bouton ci-dessous) » — et ce
+    # bouton n'existait pas. Il existe maintenant. SECONDAIRE (pierre) :
+    # l'action principale reste « Envoyer », l'arbitrage de Dan du 28/07 vaut
+    # ici comme pour « Couper les voix ».
+    # Pas d'état « gris » : copier est TOUJOURS possible, et c'est même le
+    # SEUL chemin quand le webhook est absent (compagnon.py l. 69-72). Un
+    # bouton grisé mentirait ; s'il n'y a rien à copier, la barre d'état le
+    # dit — exactement comme le faisait le Compagnon v2.
+    bouton_neutre("btn_copier", M["BTN_M_W"], M["BTN_M_H"],
+                  "Copier mon rapport", px=17)
     bouton_rouge("btn_changer", M["BTN_P_W"], M["BTN_P_H"], "Changer…",
                  px=14)
     lc, hc = M["BTN_C_W"], M["BTN_C_H"]

@@ -102,6 +102,108 @@ jobs:
           echo "--- tkinter, sans rien installer ? ---"
           python -c "import tkinter, _tkinter; print('tkinter OK — Tcl/Tk', _tkinter.TK_VERSION)"
 
+      # ------------------------------------------------------------------ #
+      # PROGRAMME 23 — CE QUE VOYAIT UN JOUEUR AVANT.
+      # On n'affirme pas que les deux boutons plantaient : on rejoue les deux
+      # chemins TELS QU'ILS ÉTAIENT (récupérés dans l'historique git), sur
+      # cette machine-ci, et on regarde ce qui sort. Puis on rejoue les mêmes
+      # chemins RÉPARÉS. La différence est la preuve.
+      # ------------------------------------------------------------------ #
+      - name: Installer de quoi lancer une interface sans écran
+        run: |
+          set -eu
+          sudo apt-get update -qq
+          # openbox : un VRAI gestionnaire de fenêtres. Sans lui, Xvfb tout nu
+          # « mappe » les fenêtres instantanément et le piège du grab_set ne
+          # se reproduit PAS — un banc qui ne peut pas voir le défaut ne
+          # prouve rien de sa correction.
+          sudo apt-get install -y -qq xvfb imagemagick x11-utils openbox
+
+      - name: AVANT — les deux chemins qui plantaient, rejoués
+        run: |
+          set -eu
+          mkdir -p captures
+          echo "=== 1. « Lancer le jeu » : import winreg sans garde ==="
+          python - <<'PY'
+          import traceback
+          try:
+              import winreg          # exactement la ligne 485 d'origine
+              print("winreg importé — on serait donc sous Windows ?!")
+          except Exception:
+              traceback.print_exc()
+              print(">>> VOILÀ ce que faisait le bouton « Lancer le jeu ».")
+          PY
+          echo
+          echo "=== 2. « Vérifier mon installation » : grab_set() d'origine ==="
+          # ⚠️ Le script Python va dans un FICHIER, jamais dans un heredoc
+          # imbriqué sous `bash -c '...'` : une apostrophe française dans un
+          # commentaire referme la chaîne du shell et casse tout. Payé au
+          # premier run de ce programme.
+          cat > /tmp/avant_grab.py <<'PY'
+          import tkinter as tk, traceback
+          racine = tk.Tk(); racine.geometry("300x200"); racine.update()
+
+          # (a) ESSAI DE REPRODUCTION sur une fenêtre non affichée. Il ÉCHOUE
+          #     à échouer sur ce coureur — on le relève quand même, parce que
+          #     c'est le résultat honnête : ce banc ne sait pas fabriquer le
+          #     symptôme de Tetardtek.
+          f = tk.Toplevel(racine); f.withdraw()
+          try:
+              f.grab_set()
+              print("(a) grab_set a RÉUSSI sur une fenêtre retirée : ce")
+              print("    coureur ne reproduit PAS le symptôme.")
+          except tk.TclError:
+              traceback.print_exc()
+              print(">>> (a) VOILÀ l'erreur de Tetardtek, reproduite.")
+
+          # (b) LE CAS RÉEL, avec un vrai gestionnaire de fenêtres qui vient
+          #     de démarrer. Il peut réussir ou échouer selon la course : on
+          #     RELÈVE, on ne conclut pas.
+          g = tk.Toplevel(racine); g.geometry("400x200"); g.transient(racine)
+          try:
+              g.grab_set()
+              print("(b) avec openbox : grab_set a réussi du premier coup.")
+          except tk.TclError as e:
+              print("(b) avec openbox : ÉCHEC —", e)
+          PY
+          xvfb-run -a --server-args="-screen 0 1280x800x24" \
+            bash -c "openbox --sm-disable >/dev/null 2>&1 & sleep 2; python /tmp/avant_grab.py"
+
+      - name: AVANT — la molette, et pourquoi personne ne l'aurait vue
+        run: |
+          set -eu
+          xvfb-run -a --server-args="-screen 0 1280x800x24" python - <<'PY'
+          import sys, tkinter as tk
+          # ⚠️ LA FENÊTRE DOIT ÊTRE AFFICHÉE. Un premier essai gardait la
+          # racine « withdraw » et le canvas non « pack » : event_generate ne
+          # délivrait rien, la mesure rendait [] — et le banc imprimait quand
+          # même sa conclusion. C'est le défaut qu'on soigne ; corrigé ici.
+          racine = tk.Tk(); racine.geometry("400x300")
+          c = tk.Canvas(racine, width=380, height=280)
+          c.pack(fill="both", expand=True)
+          racine.update()
+          vus = []
+          c.bind("<MouseWheel>", lambda e: vus.append(("MouseWheel", e.delta)))
+          c.bind("<Button-4>",  lambda e: vus.append(("Button-4", e.delta)))
+          c.bind("<Button-5>",  lambda e: vus.append(("Button-5", e.delta)))
+          for seq in ("<Button-4>", "<Button-5>"):
+              c.event_generate(seq, when="now")
+          racine.update()
+          print("événements reçus :", vus)
+          if not vus:
+              print("::error::la mesure n a RIEN reçu — elle ne prouve rien.")
+              sys.exit(1)
+          if any(nom == "MouseWheel" for nom, _ in vus):
+              print("::error::<MouseWheel> a été reçu : X11 se comporterait "
+                    "comme Windows, ce qui contredirait tout le raisonnement.")
+              sys.exit(1)
+          print("delta d un cran X11 :", [d for _, d in vus])
+          assert all(d == 0 for _, d in vus), "delta devrait valoir 0"
+          print(">>> un cran de molette arrive en Button-4/5, JAMAIS en")
+          print("    <MouseWheel>, et delta vaut 0 : `delta // 120` rend 0.")
+          print("    Le code d avant ne defilait PAS, et ne le disait pas.")
+          PY
+
       # LA BARRIÈRE. En mode distribution, sans secret on s'arrête ICI,
       # bruyamment. Construire quand même produirait un binaire muet : le
       # bouton « Envoyer mon rapport » serait peint en gris et personne ne
@@ -185,10 +287,140 @@ jobs:
           set -eu
           python -m pip install --upgrade pip
           python -m pip install pyinstaller pillow customtkinter lupa certifi
-          # xvfb : un écran virtuel, pour LANCER vraiment l'interface.
-          # imagemagick : pour la photographier.
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb imagemagick x11-utils
+          # (xvfb / imagemagick sont installés plus haut : les épreuves
+          #  « AVANT » en ont besoin avant même qu'on construise.)
+
+      # Les mêmes deux chemins, RÉPARÉS, dans le code qui va être empaqueté.
+      # On appelle les fonctions puisqu'on ne peut pas cliquer — c'est ce que
+      # le programme 23 demande explicitement.
+      - name: APRÈS — les deux chemins réparés, dans le vrai code
+        working-directory: compagnon
+        run: |
+          set -eu
+          echo "=== 1. _candidats_registre() — la fonction du bouton ==="
+          python - <<'PY'
+          import interface_hub
+          r = interface_hub._candidats_registre()
+          print("rendu :", r)
+          assert r == [], "elle devrait rendre une liste vide hors Windows"
+          print(">>> plus de ModuleNotFoundError : le bouton continue.")
+          PY
+          echo
+          echo "=== 2. _fenetre() — le grab_set du bouton « Vérifier » ==="
+          cat > /tmp/apres_fenetre.py <<'PY'
+          import tkinter as tk
+          import interface_hub
+
+          # On appelle la VRAIE méthode, sur un objet qui n'a que ce qu'elle
+          # lit — pas de Hub complet, donc pas de décor à charger.
+          class Faux(tk.Tk):
+              FOND_F, BORD_F = "#efe2c0", "#8a6a2a"
+
+          racine = Faux(); racine.geometry("300x200"); racine.update()
+          f = interface_hub.Hub._fenetre(racine, "Contrôle", 700, 480)
+          racine.update()
+          print("la fenêtre existe :", bool(f.winfo_exists()))
+          print("titre :", f.title())
+          # On laisse tourner : c'est pendant ce temps que la reprise
+          # différée prend le grab, si le premier essai a échoué.
+          racine.after(1500, racine.quit)
+          racine.mainloop()
+          print("qui tient le grab après 1,5 s :", f.grab_current())
+          assert f.winfo_exists(), "la fenêtre a disparu"
+          print(">>> plus de TclError : le bouton ouvre bien sa fenêtre.")
+
+          # ⚠️ CE QUE CE COUREUR NE SAIT PAS REPRODUIRE, ET IL FAUT LE DIRE.
+          # L'échec « grab failed: window not viewable » de Tetardtek dépend
+          # du gestionnaire de fenêtres de SON bureau. Ici, ni Xvfb tout nu ni
+          # openbox ne le provoquent : grab_set réussit même sur une fenêtre
+          # retirée. On ne peut donc pas prouver la correction sur le vrai
+          # symptôme — seulement que le MÉCANISME de reprise fonctionne.
+          # On le prouve donc en FAISANT échouer grab_set nous-mêmes.
+          h = tk.Toplevel(racine); h.geometry("300x150")
+          racine.update()
+          echecs = [0]
+          vrai_grab = h.grab_set
+
+          def grab_recalcitrant():
+              # Échoue deux fois, comme un gestionnaire lent, puis cède.
+              if echecs[0] < 2:
+                  echecs[0] += 1
+                  raise tk.TclError("grab failed: window not viewable")
+              vrai_grab()
+          h.grab_set = grab_recalcitrant
+
+          journal = []
+
+          def prendre_la_main(reste=20):     # la MÊME logique que _fenetre()
+              try:
+                  h.grab_set()
+                  journal.append("pris")
+              except tk.TclError:
+                  journal.append("refusé")
+                  if reste and h.winfo_exists():
+                      h.after(50, lambda: prendre_la_main(reste - 1))
+          prendre_la_main()
+          racine.after(800, racine.quit)
+          racine.mainloop()
+          print("suite des essais :", journal)
+          assert journal.count("refusé") == 2 and journal[-1] == "pris", \
+              "la reprise différée n'a pas rattrapé les deux refus"
+          print(">>> deux refus encaissés, le grab est pris au troisième.")
+          print(">>> (le symptôme RÉEL reste à confirmer par Tetardtek)")
+          PY
+          xvfb-run -a --server-args="-screen 0 1280x800x24" \
+            bash -c "openbox --sm-disable >/dev/null 2>&1 & sleep 2; PYTHONPATH=$PWD python /tmp/apres_fenetre.py"
+          echo
+          echo "=== 3. la molette relie bien les TROIS séquences ==="
+          xvfb-run -a --server-args="-screen 0 1280x800x24" python - <<'PY'
+          import tkinter as tk
+          import interface_hub
+          # Fenêtre AFFICHÉE et canvas POSÉ : sans ça event_generate ne
+          # délivre rien et la mesure serait vide (voir l étape « AVANT »).
+          racine = tk.Tk(); racine.geometry("400x300")
+          c = tk.Canvas(racine, width=380, height=280)
+          c.pack(fill="both", expand=True)
+          racine.update()
+          crans = []
+          interface_hub.lier_molette(
+              c, lambda e: crans.append(interface_hub.crans_molette(e)))
+          for seq in ("<Button-4>", "<Button-5>"):
+              c.event_generate(seq, when="now")
+          racine.update()
+          print("crans lus pour Button-4 puis Button-5 :", crans)
+          assert crans == [1, -1], "la molette X11 doit rendre +1 puis -1"
+          print(">>> le catalogue d addons et les deux fenetres defilent.")
+          PY
+
+      # Où va vraiment stderr dans un binaire FENÊTRÉ sous Linux ? C'est la
+      # mesure qui manque au bloc 0 : sous Windows on a relevé
+      # sys.stderr = None. Ici on regarde, on ne suppose pas.
+      - name: Où va la sortie d'erreur d'un binaire fenêtré, sous Linux ?
+        working-directory: compagnon
+        run: |
+          set -eu
+          cat > /tmp/sonde_flux.py <<'PY'
+          import sys, io, os
+          releve = "/tmp/releve_flux.txt"
+          with io.open(releve, "w", encoding="utf-8") as f:
+              f.write("gelé            : %r\n" % getattr(sys, "frozen", False))
+              f.write("sys.stdout      : %r\n" % (sys.stdout,))
+              f.write("sys.stderr      : %r\n" % (sys.stderr,))
+              f.write("sys.__stderr__  : %r\n" % (sys.__stderr__,))
+          print("SONDE: ceci part sur stderr", file=sys.stderr)
+          PY
+          pyinstaller --noconfirm --clean --onefile --windowed \
+            --name sonde_flux /tmp/sonde_flux.py > /dev/null
+          # Lancé SANS terminal attaché, comme un double-clic : fd 1 et 2
+          # ferment. C'est le cas du joueur.
+          ./dist/sonde_flux 0<&- 1>/dev/null 2>/dev/null || true
+          echo "--- ce que la sonde a relevé d'elle-même ---"
+          cat /tmp/releve_flux.txt
+          echo
+          echo "--- et avec un terminal (le cas de Tetardtek) ---"
+          ./dist/sonde_flux
+          echo ">>> Sous Linux les flux EXISTENT : le traceback est bien"
+          echo "    écrit — simplement là où le joueur ne regarde jamais."
 
       # Le .spec du dépôt est écrit POUR WINDOWS et ne peut pas servir ici :
       #   runtime_tmpdir='%LOCALAPPDATA%\\AscensionFR_Compagnon'  (variable Windows)
@@ -239,15 +471,21 @@ jobs:
         run: |
           set -eu
           mkdir -p /tmp/faux_jeu/Interface /tmp/faux_jeu/Data
-          mkdir -p AscensionFR
           python - <<'PY'
-          import io, json
-          # CONFIG = $APPDATA/AscensionFR/compagnon.json ; APPDATA n'existe pas
-          # sous Linux, donc os.environ.get("APPDATA", ".") rend "." et le
-          # fichier est cherché dans le dossier courant.
-          io.open("AscensionFR/compagnon.json", "w", encoding="utf-8").write(
+          import io, json, os
+          # ⚠️ CHANGÉ AU PROGRAMME 23. Avant : CONFIG_DIR valait
+          # os.environ.get("APPDATA", ".") -> "." sous Linux, donc la
+          # configuration atterrissait dans le DOSSIER COURANT (un endroit
+          # différent selon la façon de lancer le programme). Elle suit
+          # maintenant la convention du système. On ne devine pas le chemin :
+          # on le demande au moteur lui-même.
+          import sys
+          sys.path.insert(0, ".")
+          import compagnon as logique
+          os.makedirs(logique.CONFIG_DIR, exist_ok=True)
+          io.open(logique.CONFIG, "w", encoding="utf-8").write(
               json.dumps({"jeu": "/tmp/faux_jeu", "envoi_auto": False}))
-          print("config posée : jeu=/tmp/faux_jeu, envoi_auto=False")
+          print("config posée dans :", logique.CONFIG)
           PY
           echo "--- ce faux dossier est-il une racine de jeu valide ? ---"
           python -c "
@@ -283,6 +521,88 @@ jobs:
             ls -la ../captures/vue_$v.png 2>/dev/null || echo "pas de capture"
           done
           echo "des vues ont écrit sur la sortie d'erreur : $echec"
+
+      # ------------------------------------------------------------------ #
+      # L'ÉPREUVE QUI COMPTE (programme 23, bloc C) : on CASSE le Hub exprès,
+      # dans les trois endroits où une exception peut naître, et on regarde
+      # si le joueur voit quelque chose. Trois preuves par mode :
+      #   - une CAPTURE (la fenêtre existe-t-elle à l'écran ?)
+      #   - la LISTE DES FENÊTRES X11 (mesure, pas impression)
+      #   - le FICHIER DE TRACE, et son contenu en entier
+      # ------------------------------------------------------------------ #
+      - name: Provoquer un plantage exprès — le joueur le voit-il ?
+        working-directory: compagnon
+        run: |
+          set -eu
+          mkdir -p ../captures
+          rm -f dist/AscensionFR_incident.log
+          for mode in rappel fil demarrage; do
+            echo "════════════════════ --planter $mode ════════════════════"
+            xvfb-run -a --server-args="-screen 0 1280x800x24" bash -c "
+              openbox --sm-disable & sleep 2
+              ./dist/AscensionFR_Hub --demo accueil --planter $mode \
+                  > /tmp/planter_$mode.log 2>&1 &
+              pid=\$!
+              sleep 14
+              echo '--- fenêtres X11 réellement affichées (mesure) ---'
+              xwininfo -root -children | grep -E '^ +0x' || true
+              import -window root ../captures/plantage_$mode.png 2>/dev/null || true
+              kill \$pid 2>/dev/null || true
+              wait \$pid 2>/dev/null || true
+            " || true
+            echo "--- ce qui est parti sur la sortie standard (le joueur ne la voit pas) ---"
+            head -5 /tmp/planter_$mode.log || true
+            ls -la ../captures/plantage_$mode.png 2>/dev/null || echo "PAS DE CAPTURE"
+          done
+          echo
+          echo "════════════ LE FICHIER DE TRACE, EN ENTIER ════════════"
+          if [ -f dist/AscensionFR_incident.log ]; then
+            wc -c dist/AscensionFR_incident.log
+            cat dist/AscensionFR_incident.log
+          else
+            echo "::error::AUCUNE trace écrite — la réparation ne tient pas."
+            exit 1
+          fi
+
+      # Une trace finit collée sur le Discord. On ne se contente donc pas de
+      # la lire : on CHERCHE dedans ce qui ne doit jamais y être.
+      - name: La trace est-elle propre ? (webhook, identité, chemins)
+        working-directory: compagnon
+        env:
+          WEBHOOK: ${{ secrets.WEBHOOK_RAPPORTS }}
+        run: |
+          set -eu
+          python - <<'PY'
+          import io, os, re, sys
+          texte = io.open("dist/AscensionFR_incident.log",
+                          encoding="utf-8").read()
+          fautes = []
+          secret = os.environ.get("WEBHOOK") or ""
+          if secret and secret in texte:
+              fautes.append("le webhook est DANS la trace")
+          if re.search(r"discord(?:app)?\.com/api/webhooks/\w", texte):
+              fautes.append("une URL de webhook est dans la trace")
+          maison = os.path.expanduser("~")
+          if maison and maison != "~" and maison in texte:
+              fautes.append("le dossier personnel (%s) est dans la trace"
+                            % maison)
+          for cle in ("USER", "USERNAME", "LOGNAME"):
+              nom = os.environ.get(cle, "")
+              if len(nom) >= 3 and nom.lower() in texte.lower():
+                  fautes.append("le nom d'utilisateur (%s) est dans la trace"
+                                % nom)
+          if re.search(r"WTF[\\/]+Account[\\/]+(?!<compte>)", texte):
+              fautes.append("un nom de compte WoW est dans la trace")
+          # …et ce qui DOIT y être, sinon la trace ne sert à rien.
+          for morceau in ("Pendant :", "Traceback", "Hub 3."):
+              if morceau not in texte:
+                  fautes.append("« %s » MANQUE dans la trace" % morceau)
+          for f in fautes:
+              print("::error::%s" % f)
+          print("longueur de la trace : %d octets" % len(texte))
+          print("verdict :", "PROPRE" if not fautes else "SALE")
+          sys.exit(1 if fautes else 0)
+          PY
 
       # Les 98 fichiers d'assets/hub sont-ils embarqués, et les polices du jeu
       # sont-elles réellement CHARGÉES ? Ce sont deux questions différentes :

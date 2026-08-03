@@ -31,6 +31,7 @@ import sys
 import tempfile
 import threading
 import time
+import traceback
 import urllib.error
 import urllib.request
 import webbrowser
@@ -113,8 +114,147 @@ VERT = "#2fb46a"
 ORANGE = "#e8a33d"
 ROUGE = "#e05252"
 
-CONFIG_DIR = os.path.join(os.environ.get("APPDATA", "."), "AscensionFR")
+def _dossier_config():
+    """Où vivent la configuration et les traces d'échec.
+
+    Sous Windows : %APPDATA%\\AscensionFR — inchangé, au caractère près, pour
+    les 274 installations existantes.
+
+    Ailleurs (Linux, depuis le programme 21) : `os.environ.get("APPDATA", ".")`
+    rendait "." — la configuration atterrissait donc dans le dossier COURANT,
+    c'est-à-dire à un endroit différent selon la façon dont le joueur a lancé
+    le programme (double-clic, terminal, raccourci). Un joueur qui choisissait
+    son dossier de jeu le reperdait au lancement suivant, et une trace d'erreur
+    écrite là serait introuvable. On suit la convention du système."""
+    base = os.environ.get("APPDATA")
+    if base:
+        return os.path.join(base, "AscensionFR")
+    base = os.environ.get("XDG_CONFIG_HOME")
+    if not base:
+        maison = os.path.expanduser("~")
+        # expanduser rend "~" tel quel quand il n'a pas su : on ne fabrique
+        # pas un dossier nommé « ~ », on retombe sur le dossier courant.
+        base = os.path.join(maison, ".config") if maison != "~" else "."
+    return os.path.join(base, "AscensionFR")
+
+
+CONFIG_DIR = _dossier_config()
 CONFIG = os.path.join(CONFIG_DIR, "compagnon.json")
+
+# --------------------------------------------------------------------------- #
+# Journal d'incident — « ça a raté, et voilà où c'est écrit »
+# --------------------------------------------------------------------------- #
+# POURQUOI (programme 23, 02/08/2026). Mesuré, pas supposé : dans un exe figé
+# en mode fenêtré, `sys.stdout` ET `sys.stderr` valent None. Tkinter attrape
+# toute exception de rappel et l'envoie à `traceback.print_exception`, qui
+# écrit dans le vide sans rien lever. Résultat : un bouton du Hub qui plante
+# ne fait RIEN — pas un message, pas une trace, et l'application se ferme
+# normalement. C'est vrai sous Linux ET sous Windows.
+#
+# ⚠️ CE QU'UNE TRACE NE DOIT JAMAIS PORTER. Un journal d'erreur finit collé
+# sur le Discord par un joueur qui veut aider. Il est donc écrit en partant de
+# là : `_anonymiser` retire le webhook, le nom d'utilisateur du système, le
+# nom de compte WoW et le dossier temporaire du paquet. Rien n'y entre qui ne
+# puisse être lu par n'importe qui.
+FICHIER_INCIDENT = "AscensionFR_incident.log"
+TAILLE_INCIDENT_MAX = 200_000        # au-delà, on repart de zéro
+
+
+def dossier_journal():
+    """Le dossier où poser une trace d'échec.
+
+    Le projet en a DÉJÀ un : le relais de mise à jour écrit
+    `AscensionFR_maj_echec.log` À CÔTÉ DU PROGRAMME (voir
+    `lancer_remplacement`). On reprend le même endroit — c'est là que le
+    joueur qui vient de double-cliquer ira regarder — avec CONFIG_DIR en
+    repli quand ce dossier n'est pas inscriptible (Program Files, /opt, un
+    binaire posé sur une clé en lecture seule)."""
+    if getattr(sys, "frozen", False):
+        candidats = [os.path.dirname(os.path.abspath(sys.executable))]
+    else:
+        candidats = [os.path.dirname(os.path.abspath(__file__))]
+    candidats.append(CONFIG_DIR)
+    for dossier in candidats:
+        try:
+            os.makedirs(dossier, exist_ok=True)
+            temoin = os.path.join(dossier, ".afr_ecriture")
+            with open(temoin, "w") as f:
+                f.write("")
+            os.remove(temoin)
+            return dossier
+        except OSError:
+            continue
+    return None
+
+
+_RE_WEBHOOK = re.compile(
+    r"https?://(?:\w+\.)?discord(?:app)?\.com/api/webhooks/\S*",
+    re.IGNORECASE)
+# …\WTF\Account\<COMPTE>\… : le nom de compte WoW EST un identifiant de joueur.
+_RE_COMPTE_WOW = re.compile(r"(?i)(WTF[\\/]+Account[\\/]+)[^\\/\r\n\"']+")
+
+
+def _anonymiser(texte):
+    """Retire d'une trace tout ce qui ne doit jamais voyager.
+
+    Ordre volontaire : du plus long au plus court, sinon un remplacement
+    court coupe un chemin en deux et le suivant ne reconnaît plus rien
+    (le piège des passes de vocabulaire, appliqué ici)."""
+    if not texte:
+        return texte
+    if WEBHOOK_RAPPORTS:
+        texte = texte.replace(WEBHOOK_RAPPORTS, "<webhook>")
+    # …et tout autre webhook Discord, y compris un que nous n'aurions pas posé.
+    texte = _RE_WEBHOOK.sub("<webhook>", texte)
+    texte = _RE_COMPTE_WOW.sub(r"\1<compte>", texte)
+    # Le dossier temporaire du paquet PyInstaller contient le nom de session.
+    paquet = getattr(sys, "_MEIPASS", "")
+    if paquet:
+        texte = texte.replace(paquet, "<paquet>")
+    maison = os.path.expanduser("~")
+    if maison and maison != "~":
+        texte = texte.replace(maison, "<maison>")
+    # Le nom d'utilisateur tout seul (« KeyError: 'Jerome' », un chemin écrit
+    # d'une autre façon). Pas de \b : après un souligné il ne voit aucune
+    # frontière et raterait en silence — le piège déjà payé au programme 6.
+    for cle in ("USERNAME", "USER", "LOGNAME"):
+        nom = os.environ.get(cle, "")
+        if len(nom) >= 3:
+            texte = re.sub(re.escape(nom), "<joueur>", texte,
+                           flags=re.IGNORECASE)
+    return texte
+
+
+def journal_incident(ou, trace=None):
+    """Écrit UNE trace d'échec et rend le chemin du fichier (None si même ça
+    a raté — on ne plante jamais dans le gestionnaire de plantage).
+
+    `ou`    : ce que le joueur était en train de faire (« Lancer le jeu »).
+    `trace` : le texte du traceback ; à défaut, celui de l'exception courante.
+    """
+    try:
+        if trace is None:
+            trace = traceback.format_exc()
+        dossier = dossier_journal()
+        if not dossier:
+            return None
+        chemin = os.path.join(dossier, FICHIER_INCIDENT)
+        try:
+            if os.path.getsize(chemin) > TAILLE_INCIDENT_MAX:
+                os.remove(chemin)      # une boucle de plantages ne remplit
+        except OSError:                # pas le disque du joueur
+            pass
+        bloc = ("\n" + "=" * 70 + "\n"
+                + "[%s] Hub %s — %s\n"
+                % (time.strftime("%d/%m/%Y %H:%M:%S"), VERSION_COMPAGNON,
+                   platform.platform())
+                + "Pendant : %s\n" % ou
+                + _anonymiser(trace).rstrip() + "\n")
+        with open(chemin, "a", encoding="utf-8", errors="replace") as f:
+            f.write(bloc)
+        return chemin
+    except Exception:
+        return None
 
 
 def ressource(nom):
@@ -640,6 +780,31 @@ def installer_zip(chemin_zip, jeu):
     os.remove(chemin_zip)
 
 
+def remplacement_possible():
+    """L'auto-mise à jour de l'APPLICATION est-elle praticable ici ?
+
+    ⚠️ AJOUT URGENT DU PROGRAMME 23 (02/08/2026), trouvé par Tetardtek.
+    Deux raisons, et une seule suffirait :
+
+      1. le relais de remplacement est un **.bat lancé par cmd.exe**
+         (`lancer_remplacement` ci-dessous) — il n'existe pas ailleurs ;
+      2. l'asset publié sous le nom `EXE_ATTENDU` est un **exécutable
+         Windows**, et `derniere_release()` ne sait pas choisir par
+         plateforme : sous Linux, `url_exe` désignait donc l'exe Windows.
+
+    Le défaut dormait : la 3.4.1 étant la dernière publiée, aucun Hub n'était
+    « en retard ». Il se serait armé à la PREMIÈRE publication suivante — un
+    joueur Linux se serait vu proposer la mise à jour, aurait téléchargé ~40 Mo
+    d'exe Windows, et le relais l'aurait passé à `cmd`. Aujourd'hui ça échoue
+    par CHANCE (`creationflags` n'existe pas hors Windows et lève un
+    ValueError, rattrapé plus haut) — la chance n'est pas un garde-fou.
+
+    Cette fonction est le seul endroit où la question se pose. Quand le choix
+    de l'asset par plateforme arrivera (PR de Tetardtek), c'est ICI qu'il
+    faudra élargir, pas dans l'interface."""
+    return os.name == "nt"
+
+
 def lancer_remplacement(nouveau, cible):
     """Auto-mise à jour du Compagnon : un programme ne peut pas s'écraser
     lui-même pendant qu'il tourne. On confie donc l'échange à un minuscule
@@ -676,6 +841,15 @@ def lancer_remplacement(nouveau, cible):
     Chemin d'échec : on remet l'ancien en place, on le relance, et on écrit
     un journal à côté du Compagnon. Le relais ne s'efface QUE s'il a réussi.
     """
+    # Le garde-fou qui MORD, plutôt que l'échec par chance. Sans lui, ce
+    # chemin ne ratait sous Linux que parce que `creationflags` lève — et
+    # quiconque « corrigerait » cette ligne un jour ferait écraser le binaire
+    # Linux du joueur par un .exe Windows, c'est-à-dire le laisserait sans Hub
+    # du tout : exactement le défaut que le programme 9 a réparé.
+    if not remplacement_possible():
+        raise RuntimeError(
+            "l'auto-mise à jour de l'application n'existe que sous Windows "
+            "(le relais est un .bat, et l'asset publié est un .exe)")
     ancien = cible + ".ancien"
     journal = os.path.join(os.path.dirname(cible) or ".",
                            "AscensionFR_maj_echec.log")
@@ -2281,15 +2455,24 @@ class Compagnon(ctk.CTk):
 
     def _relancer_admin(self):
         """Redémarre l'appli avec les droits administrateur (fenêtre UAC de
-        Windows), pour pouvoir écrire dans Program Files."""
+        Windows), pour pouvoir écrire dans Program Files.
+
+        Cette interface v2 n'est plus celle qui est distribuée (le Hub l'a
+        remplacée), mais elle vit dans un fichier surveillé et le balayage du
+        programme 23 l'a trouvée sans garde : `ctypes.windll` lève un
+        AttributeError hors Windows. Un seul `except` plutôt qu'un défaut
+        laissé derrière soi."""
         import ctypes
         if getattr(sys, "frozen", False):
             programme, arguments = sys.executable, ""
         else:                              # mode script (développement)
             programme = sys.executable
             arguments = '"%s"' % os.path.abspath(__file__)
-        r = ctypes.windll.shell32.ShellExecuteW(
-            None, "runas", programme, arguments, None, 1)
+        try:
+            r = ctypes.windll.shell32.ShellExecuteW(
+                None, "runas", programme, arguments, None, 1)
+        except Exception:
+            r = 0                          # traité comme un refus, ci-dessous
         if r <= 32:                        # UAC refusé ou échec du lancement
             self.etat("Élévation refusée — tu peux aussi faire clic droit "
                       "sur le Compagnon → « Exécuter en tant "
