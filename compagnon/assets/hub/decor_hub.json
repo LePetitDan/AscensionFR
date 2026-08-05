@@ -1,0 +1,482 @@
+{
+ "fond": {
+  "w": 1080,
+  "h": 680,
+  "pad": 0
+ },
+ "nav_accueil": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_accueil_survol": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_accueil_actif": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_traduction": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_traduction_survol": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_traduction_actif": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_voix": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_voix_survol": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_voix_actif": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_addons": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_addons_survol": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_addons_actif": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_contribuer": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_contribuer_survol": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "nav_contribuer_actif": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "btn_lancer": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "btn_lancer_survol": {
+  "w": 188,
+  "h": 46,
+  "pad": 0
+ },
+ "btn_installer": {
+  "w": 340,
+  "h": 48,
+  "pad": 0
+ },
+ "btn_installer_survol": {
+  "w": 340,
+  "h": 48,
+  "pad": 0
+ },
+ "btn_maj": {
+  "w": 340,
+  "h": 48,
+  "pad": 0
+ },
+ "btn_maj_survol": {
+  "w": 340,
+  "h": 48,
+  "pad": 0
+ },
+ "btn_reessayer": {
+  "w": 340,
+  "h": 48,
+  "pad": 0
+ },
+ "btn_reessayer_survol": {
+  "w": 340,
+  "h": 48,
+  "pad": 0
+ },
+ "btn_admin": {
+  "w": 340,
+  "h": 48,
+  "pad": 0
+ },
+ "btn_admin_survol": {
+  "w": 340,
+  "h": 48,
+  "pad": 0
+ },
+ "btn_voix": {
+  "w": 340,
+  "h": 48,
+  "pad": 0
+ },
+ "btn_voix_survol": {
+  "w": 340,
+  "h": 48,
+  "pad": 0
+ },
+ "btn_voix_couper": {
+  "w": 220,
+  "h": 36,
+  "pad": 0
+ },
+ "btn_voix_couper_survol": {
+  "w": 220,
+  "h": 36,
+  "pad": 0
+ },
+ "btn_voix_remettre": {
+  "w": 220,
+  "h": 36,
+  "pad": 0
+ },
+ "btn_voix_remettre_survol": {
+  "w": 220,
+  "h": 36,
+  "pad": 0
+ },
+ "btn_envoyer": {
+  "w": 300,
+  "h": 44,
+  "pad": 0
+ },
+ "btn_envoyer_survol": {
+  "w": 300,
+  "h": 44,
+  "pad": 0
+ },
+ "btn_envoyer_gris": {
+  "w": 300,
+  "h": 44,
+  "pad": 0
+ },
+ "btn_copier": {
+  "w": 300,
+  "h": 44,
+  "pad": 0
+ },
+ "btn_copier_survol": {
+  "w": 300,
+  "h": 44,
+  "pad": 0
+ },
+ "btn_changer": {
+  "w": 110,
+  "h": 30,
+  "pad": 0
+ },
+ "btn_changer_survol": {
+  "w": 110,
+  "h": 30,
+  "pad": 0
+ },
+ "btn_carte_installer": {
+  "w": 160,
+  "h": 32,
+  "pad": 0
+ },
+ "btn_carte_installer_survol": {
+  "w": 160,
+  "h": 32,
+  "pad": 0
+ },
+ "btn_carte_maj": {
+  "w": 160,
+  "h": 32,
+  "pad": 0
+ },
+ "btn_carte_maj_survol": {
+  "w": 160,
+  "h": 32,
+  "pad": 0
+ },
+ "btn_carte_desinstaller": {
+  "w": 160,
+  "h": 32,
+  "pad": 0
+ },
+ "btn_carte_desinstaller_survol": {
+  "w": 160,
+  "h": 32,
+  "pad": 0
+ },
+ "btn_carte_installe": {
+  "w": 160,
+  "h": 32,
+  "pad": 0
+ },
+ "btn_carte_bientot": {
+  "w": 160,
+  "h": 32,
+  "pad": 0
+ },
+ "btn_carte_absent": {
+  "w": 160,
+  "h": 32,
+  "pad": 0
+ },
+ "tuile": {
+  "w": 244,
+  "h": 96,
+  "pad": 12
+ },
+ "carte": {
+  "w": 372,
+  "h": 118,
+  "pad": 12
+ },
+ "panneau_nouvelles": {
+  "w": 766,
+  "h": 258,
+  "pad": 12
+ },
+ "panneau_or": {
+  "w": 766,
+  "h": 310,
+  "pad": 12
+ },
+ "parchemin_lettre": {
+  "w": 766,
+  "h": 364,
+  "pad": 14
+ },
+ "badge_ok": {
+  "w": 56,
+  "h": 56,
+  "pad": 6
+ },
+ "badge_fr": {
+  "w": 46,
+  "h": 24,
+  "pad": 0
+ },
+ "barre_creuse": {
+  "w": 560,
+  "h": 22,
+  "pad": 0
+ },
+ "barre_bande": {
+  "w": 556,
+  "h": 18,
+  "pad": 0
+ },
+ "etat_neutre": {
+  "w": 766,
+  "h": 32,
+  "pad": 0
+ },
+ "etat_alerte": {
+  "w": 766,
+  "h": 32,
+  "pad": 0
+ },
+ "etat_erreur": {
+  "w": 766,
+  "h": 32,
+  "pad": 0
+ },
+ "etat_succes": {
+  "w": 766,
+  "h": 32,
+  "pad": 0
+ },
+ "plaque_verdict": {
+  "w": 766,
+  "h": 78,
+  "pad": 0
+ },
+ "plaque_outils": {
+  "w": 766,
+  "h": 106,
+  "pad": 0
+ },
+ "plaque_note": {
+  "w": 766,
+  "h": 36,
+  "pad": 0
+ },
+ "pastille_verte": {
+  "w": 22,
+  "h": 22,
+  "pad": 0
+ },
+ "pastille_jaune": {
+  "w": 22,
+  "h": 22,
+  "pad": 0
+ },
+ "pastille_rouge": {
+  "w": 22,
+  "h": 22,
+  "pad": 0
+ },
+ "pastille_grise": {
+  "w": 22,
+  "h": 22,
+  "pad": 0
+ },
+ "titre_accueil": {
+  "w": 108,
+  "h": 33,
+  "pad": 0
+ },
+ "titre_traduction": {
+  "w": 152,
+  "h": 41,
+  "pad": 0
+ },
+ "titre_voix": {
+  "w": 215,
+  "h": 39,
+  "pad": 0
+ },
+ "titre_addons": {
+  "w": 103,
+  "h": 39,
+  "pad": 0
+ },
+ "titre_contribuer": {
+  "w": 156,
+  "h": 39,
+  "pad": 0
+ },
+ "soustitre_voix": {
+  "w": 766,
+  "h": 48,
+  "pad": 0
+ },
+ "soustitre_addons": {
+  "w": 766,
+  "h": 27,
+  "pad": 0
+ },
+ "case_vide": {
+  "w": 26,
+  "h": 26,
+  "pad": 0
+ },
+ "case_cochee": {
+  "w": 26,
+  "h": 26,
+  "pad": 0
+ },
+ "filet_nouvelles": {
+  "w": 718,
+  "h": 8,
+  "pad": 0
+ },
+ "fleche_haut": {
+  "w": 22,
+  "h": 22,
+  "pad": 0
+ },
+ "fleche_haut_off": {
+  "w": 22,
+  "h": 22,
+  "pad": 0
+ },
+ "fleche_bas": {
+  "w": 22,
+  "h": 22,
+  "pad": 0
+ },
+ "fleche_bas_off": {
+  "w": 22,
+  "h": 22,
+  "pad": 0
+ },
+ "pouce_defilement": {
+  "w": 18,
+  "h": 24,
+  "pad": 0
+ },
+ "carte_ic_ascensionfr_confort": {
+  "w": 56,
+  "h": 56,
+  "pad": 0
+ },
+ "carte_ic_ascensionfr_equipement": {
+  "w": 56,
+  "h": 56,
+  "pad": 0
+ },
+ "carte_ic_dragonui": {
+  "w": 56,
+  "h": 56,
+  "pad": 0
+ },
+ "carte_ic_dbm": {
+  "w": 56,
+  "h": 56,
+  "pad": 0
+ },
+ "carte_ic_adibags": {
+  "w": 56,
+  "h": 56,
+  "pad": 0
+ },
+ "carte_ic_lootcollector": {
+  "w": 56,
+  "h": 56,
+  "pad": 0
+ },
+ "btn_discord": {
+  "w": 76,
+  "h": 44,
+  "pad": 0
+ },
+ "btn_discord_survol": {
+  "w": 76,
+  "h": 44,
+  "pad": 0
+ },
+ "btn_cafe": {
+  "w": 120,
+  "h": 44,
+  "pad": 0
+ },
+ "btn_cafe_survol": {
+  "w": 120,
+  "h": 44,
+  "pad": 0
+ },
+ "btn_fait": {
+  "w": 340,
+  "h": 48,
+  "pad": 0
+ },
+ "btn_voix_fait": {
+  "w": 340,
+  "h": 48,
+  "pad": 0
+ },
+ "carte_ic_ascensionfr_peche": {
+  "w": 56,
+  "h": 56,
+  "pad": 0
+ }
+}

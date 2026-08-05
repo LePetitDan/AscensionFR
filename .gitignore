@@ -9,3 +9,7 @@ __pycache__/
 .idea/
 compagnon/build
 compagnon/dist
+# Journaux d'incident du Hub (programme 23) : des traces de machine, jamais
+# du code. Elles se posent à côté du programme, là où le joueur les trouve.
+AscensionFR_incident.log
+AscensionFR_maj_echec.log
