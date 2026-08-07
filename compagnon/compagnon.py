@@ -39,6 +39,8 @@ import zipfile
 
 import customtkinter as ctk
 
+import plateforme                     # couche d'abstraction Windows/Linux
+
 # parser_wdb (lecture des caches WDB du client) vit dans traduction\outils et
 # est embarqué tel quel dans l'exe (voir AscensionFR_Compagnon.spec). En
 # développement, on va le chercher dans le dépôt. Sans lui, le rapport part
@@ -95,6 +97,12 @@ TEMOIN_VOIX = os.path.join("Sound", "CREATURE", "SylvanasWindrunner",
                            "Sylvanas_WoundCritical01.wav")
 ZIP_ATTENDU = "AscensionFR_manuel.zip"
 EXE_ATTENDU = "AscensionFR_Compagnon.exe"
+# L'application publiée POUR CETTE PLATEFORME. Depuis la 3.4.1 la release
+# porte deux programmes — l'exe Windows et le binaire Linux du workflow
+# Actions — et il faut désigner le bon : sous Windows c'est EXE_ATTENDU, mot
+# pour mot, donc rien ne change de ce côté.
+ASSET_APPLICATION = plateforme.nom_asset_application(EXE_ATTENDU)
+SUFFIXE_APPLICATION = plateforme.suffixe_application()
 UA = {"User-Agent": "AscensionFR-Compagnon"}
 
 # Palette « launcher moderne » : sombre, plat, une seule touche d'or — le
@@ -114,31 +122,19 @@ VERT = "#2fb46a"
 ORANGE = "#e8a33d"
 ROUGE = "#e05252"
 
-def _dossier_config():
-    """Où vivent la configuration et les traces d'échec.
-
-    Sous Windows : %APPDATA%\\AscensionFR — inchangé, au caractère près, pour
-    les 274 installations existantes.
-
-    Ailleurs (Linux, depuis le programme 21) : `os.environ.get("APPDATA", ".")`
-    rendait "." — la configuration atterrissait donc dans le dossier COURANT,
-    c'est-à-dire à un endroit différent selon la façon dont le joueur a lancé
-    le programme (double-clic, terminal, raccourci). Un joueur qui choisissait
-    son dossier de jeu le reperdait au lancement suivant, et une trace d'erreur
-    écrite là serait introuvable. On suit la convention du système."""
-    base = os.environ.get("APPDATA")
-    if base:
-        return os.path.join(base, "AscensionFR")
-    base = os.environ.get("XDG_CONFIG_HOME")
-    if not base:
-        maison = os.path.expanduser("~")
-        # expanduser rend "~" tel quel quand il n'a pas su : on ne fabrique
-        # pas un dossier nommé « ~ », on retombe sur le dossier courant.
-        base = os.path.join(maison, ".config") if maison != "~" else "."
-    return os.path.join(base, "AscensionFR")
-
-
-CONFIG_DIR = _dossier_config()
+# Dossier de config selon l'OS (%APPDATA% sous Windows, ~/.config sous Linux).
+#
+# Le programme 23 avait ajouté ici un _dossier_config() qui répond à la même
+# question. Il est retiré au profit de plateforme.dossier_config(), pour une
+# raison précise : il testait APPDATA EN PREMIER, quelle que soit la
+# plateforme — or un joueur Linux qui a APPDATA dans son environnement (cela
+# arrive quand on bricole avec Wine) aurait vu sa configuration partir dans un
+# chemin Windows. La couche plateforme interroge le système d'abord.
+#
+# Son repli, lui, était meilleur et il a été REPRIS dans plateforme.py :
+# expanduser rend « ~ » tel quel quand il ne sait pas résoudre le foyer, et on
+# fabriquait alors un dossier réellement nommé « ~ ».
+CONFIG_DIR = plateforme.dossier_config("AscensionFR")
 CONFIG = os.path.join(CONFIG_DIR, "compagnon.json")
 
 # --------------------------------------------------------------------------- #
@@ -432,6 +428,10 @@ def _pistes_launcher():
     mais ratait D:\\Jeux\\Ascension\\resources\\… — l'installation la plus
     courante."""
     pistes = []
+    # 0. Linux (Wine/Proton) : ni %APPDATA% ni registre visibles depuis Python
+    #    natif — on interroge Faugus/Lutris/Steam et on balaie les prefixes.
+    #    No-op (liste vide) sous Windows, où les passes 1 et 2 font foi.
+    pistes.extend(plateforme.pistes_jeu_linux())
     # 1. La configuration du launcher (Electron : %APPDATA%\Ascension Launcher)
     for base in (os.environ.get("APPDATA"), os.environ.get("LOCALAPPDATA")):
         if not base:
@@ -636,7 +636,7 @@ def derniere_release():
     for asset in infos.get("assets", []):
         if asset.get("name") == ZIP_ATTENDU:
             url_zip = asset.get("browser_download_url")
-        elif asset.get("name") == EXE_ATTENDU:
+        elif asset.get("name") == ASSET_APPLICATION:
             url_exe = asset.get("browser_download_url")
     return version, url_zip, url_exe
 
@@ -728,7 +728,7 @@ def telecharger_fichier(url, progres=None, suffixe=".zip",
                 if not bloc:
                     break
                 if not debut:
-                    debut = bloc[:2]
+                    debut = bloc[:4]      # 2 pour « MZ », 4 pour « \x7fELF »
                 f.write(bloc)
                 empreinte.update(bloc)
                 fait += len(bloc)
@@ -757,6 +757,15 @@ def verifier_telechargement(chemin, suffixe, debut, empreinte,
     if suffixe == ".exe" and debut[:2] != b"MZ":
         raise ValueError(
             "le fichier téléchargé n'est pas un programme Windows. Le "
+            "téléchargement a été interrompu, ou un équipement réseau a "
+            "renvoyé une page d'erreur à la place — réessaie dans un "
+            "instant.")
+    # Même garde pour le binaire Linux, qui ne commence évidemment pas par
+    # « MZ » : sans elle, l'application publiée pour Linux serait la seule à
+    # n'avoir aucun contrôle de forme, et une page d'erreur HTML passerait.
+    if suffixe == ".bin" and debut[:4] != b"\x7fELF":
+        raise ValueError(
+            "le fichier téléchargé n'est pas un programme Linux. Le "
             "téléchargement a été interrompu, ou un équipement réseau a "
             "renvoyé une page d'erreur à la place — réessaie dans un "
             "instant.")
@@ -801,8 +810,25 @@ def remplacement_possible():
 
     Cette fonction est le seul endroit où la question se pose. Quand le choix
     de l'asset par plateforme arrivera (PR de Tetardtek), c'est ICI qu'il
-    faudra élargir, pas dans l'interface."""
-    return os.name == "nt"
+    faudra élargir, pas dans l'interface.
+
+    ─── L'ÉLARGISSEMENT ANNONCÉ CI-DESSUS, une fois les deux raisons levées :
+
+      1. le choix de l'asset par plateforme existe (ASSET_APPLICATION) — sous
+         Linux, `url_exe` désigne bien le binaire Linux et plus l'exe Windows ;
+      2. le remplacement ne passe plus par un .bat : sous Linux le processus
+         tient son inode, pas son chemin, et `plateforme.remplacer_application`
+         échange le fichier pendant qu'il tourne.
+
+    La garde n'est donc pas doublée, elle est REMPLACÉE : c'est toujours cette
+    fonction, seule, qui décide — les trois barrières du Hub restent les trois
+    barrières. `peut_remplacer_sur_place()` répond « non » hors Linux et hors
+    programme figé (sur les sources, `sys.executable` désigne l'interpréteur :
+    on écraserait /usr/bin/python3).
+
+    Éprouvé en conditions réelles le 03/08/2026 : 3.4.1 → 3.4.2 par ce chemin,
+    empreinte du binaire installé identique à celle de l'asset publié."""
+    return os.name == "nt" or plateforme.peut_remplacer_sur_place()
 
 
 def lancer_remplacement(nouveau, cible):
@@ -846,10 +872,18 @@ def lancer_remplacement(nouveau, cible):
     # quiconque « corrigerait » cette ligne un jour ferait écraser le binaire
     # Linux du joueur par un .exe Windows, c'est-à-dire le laisserait sans Hub
     # du tout : exactement le défaut que le programme 9 a réparé.
-    if not remplacement_possible():
+    #
+    # ⚠️ CE GARDE TESTE WINDOWS, PAS `remplacement_possible()`. Il le faisait
+    # avant cette PR, et c'était juste tant que les deux voulaient dire la
+    # même chose. Ce n'est plus le cas : `remplacement_possible()` répond
+    # maintenant oui sous Linux aussi, où le remplacement se fait sans relais
+    # ni .bat. Garder l'ancien test ici aurait DÉSARMÉ ce garde-fou pour
+    # exactement la plateforme qu'il protège.
+    if os.name != "nt":
         raise RuntimeError(
-            "l'auto-mise à jour de l'application n'existe que sous Windows "
-            "(le relais est un .bat, et l'asset publié est un .exe)")
+            "ce relais de remplacement n'existe que sous Windows (c'est un "
+            ".bat lancé par cmd) — sous Linux, l'échange passe par "
+            "plateforme.remplacer_application")
     ancien = cible + ".ancien"
     journal = os.path.join(os.path.dirname(cible) or ".",
                            "AscensionFR_maj_echec.log")
@@ -2501,8 +2535,9 @@ class Compagnon(ctk.CTk):
             try:
                 # La référence vient des MÉTADONNÉES de la release, pas du
                 # fichier qu'on s'apprête à télécharger (programme 9).
-                sha, taille = reference_asset(EXE_ATTENDU)
-                nouveau = telecharger_fichier(self.url_exe, progres, ".exe",
+                sha, taille = reference_asset(ASSET_APPLICATION)
+                nouveau = telecharger_fichier(self.url_exe, progres,
+                                              SUFFIXE_APPLICATION,
                                               sha256_attendu=sha,
                                               taille_attendue=taille)
                 self.after(0, lambda n=nouveau: self._redemarrer_avec(n))

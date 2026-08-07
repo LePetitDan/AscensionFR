@@ -42,6 +42,7 @@ from tkinter import filedialog
 from PIL import Image, ImageTk
 
 import compagnon as logique
+import plateforme                     # couche d'abstraction Windows/Linux
 
 # --------------------------------------------------------------------------- #
 # Plan de la fenêtre — la seule source des cotes, partagée avec
@@ -1074,8 +1075,14 @@ class Hub(tk.Tk):
         AttributeError, que `except OSError` ne rattrapait pas. Plutôt que de
         deviner comment lancer un .exe Windows depuis Linux (Wine ? Lutris ?
         un préfixe ? — je ne peux rien en éprouver), on le DIT au joueur.
-        Un message honnête vaut mieux qu'un lancement inventé."""
-        if not hasattr(os, "startfile"):
+        Un message honnête vaut mieux qu'un lancement inventé.
+
+        Ce message reste vrai partout SAUF sous Linux, où `plateforme.lancer`
+        sait désormais passer par le runner Proton/Wine (vérifié en jeu : le
+        launcher Faugus s'ouvre). Sans le second terme ci-dessous, le `return`
+        court-circuiterait ce chemin dix lignes plus bas — et le Hub dirait au
+        joueur qu'il ne sait pas faire une chose qu'il sait faire."""
+        if not hasattr(os, "startfile") and not plateforme.EST_LINUX:
             self.statut("alerte", "Sur ce système, le Hub ne sait pas lancer "
                                   "le jeu à ta place — lance-le comme "
                                   "d'habitude. Tout le reste fonctionne.")
@@ -1090,22 +1097,18 @@ class Hub(tk.Tk):
         for base in candidats:
             launcher = os.path.join(base, "Ascension Launcher.exe")
             if os.path.isfile(launcher):
-                try:
-                    os.startfile(launcher)
+                # plateforme.lancer : os.startfile sous Windows (inchangé),
+                # runner Proton/Wine sous Linux. Renvoie True si tenté.
+                if plateforme.lancer(launcher, plateforme.prefixe_de(base)):
                     self.statut("succes", "Le launcher Ascension se lance. "
                                           "Bon voyage !")
                     return
-                except OSError:
-                    pass
         exe = os.path.join(self.jeu or "", "Ascension.exe")
         if self.jeu and os.path.isfile(exe):
-            try:
-                os.startfile(exe)
+            if plateforme.lancer(exe, plateforme.prefixe_de(self.jeu)):
                 self.statut("succes", "Launcher introuvable — le jeu se "
                                       "lance directement.")
                 return
-            except OSError:
-                pass
         self.statut("erreur", "Impossible de trouver le launcher ou le jeu. "
                               "Vérifie le dossier dans l'onglet Traduction.")
 
@@ -1659,11 +1662,12 @@ class Hub(tk.Tk):
         try:
             # La référence d'intégrité vient des métadonnées de la release,
             # pas du fichier téléchargé (programme 9).
-            sha, taille = logique.reference_asset(logique.EXE_ATTENDU)
-            chemin = logique.telecharger_fichier(self.url_exe,
-                                                 suffixe=".exe",
-                                                 sha256_attendu=sha,
-                                                 taille_attendue=taille)
+            sha, taille = logique.reference_asset(logique.ASSET_APPLICATION)
+            chemin = logique.telecharger_fichier(
+                self.url_exe,
+                suffixe=logique.SUFFIXE_APPLICATION,
+                sha256_attendu=sha,
+                taille_attendue=taille)
         except Exception as err:
             # On DIT pourquoi. Le message d'origine était le même quelle que
             # soit la cause — or un téléchargement abîmé et une panne réseau
@@ -1675,6 +1679,17 @@ class Hub(tk.Tk):
         self._sur_canvas(self._remplacer_appli, chemin)
 
     def _remplacer_appli(self, chemin):
+        if plateforme.peut_remplacer_sur_place():
+            # Linux : aucun relais à orchestrer. Le fichier s'échange sous le
+            # processus qui tourne, et l'application se relance elle-même —
+            # remplacer_application ne rend donc la main qu'en cas d'échec, et
+            # elle DIT lequel (dossier en lecture seule, version qui refuse de
+            # démarrer…). Le message générique ne suffirait pas à agir.
+            try:
+                plateforme.remplacer_application(chemin, sys.executable)
+            except Exception as err:
+                self.statut("erreur", "Mise à jour impossible — %s" % err)
+            return
         try:
             logique.lancer_remplacement(chemin, sys.executable)
         except Exception:
