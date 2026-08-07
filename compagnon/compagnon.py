@@ -63,7 +63,7 @@ PAGE_RELEASES = "https://github.com/" + DEPOT + "/releases"
 # infinie du 25-28/07 : le Hub comparait le .toc au tag et proposait la mise à
 # jour pour toujours. verifier_tout.py et publier_github.py refusent tout
 # écart, sans option pour passer outre.
-VERSION_COMPAGNON = "3.4.2"
+VERSION_COMPAGNON = "3.4.3"
 
 # Salon des rapports : URL du webhook Discord (fournie par le mainteneur).
 # VIDE -> le bouton « Envoyer » n'existe pas, seul « Copier » reste (aucun
