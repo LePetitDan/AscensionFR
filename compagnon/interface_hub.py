@@ -491,10 +491,62 @@ def dossiers_addon_du_zip(tampon):
     return trouves
 
 
+def _toc_quelque_part(tampon, dossier):
+    """Le chemin du dossier contenant « <dossier>.toc », où qu'il soit dans
+    l'arbre (insensible à la casse), ou None. Sert au re-racinage quand le
+    .toc existe mais pas dans un dossier au bon nom (zip à plat, ou wrapper
+    « Depot-branche/ » d'une archive de sources GitHub)."""
+    cible = (dossier + ".toc").lower()
+    for racine, _dossiers, fichiers in os.walk(tampon):
+        if any(f.lower() == cible for f in fichiers):
+            return racine
+    return None
+
+
+def _reraciner(tampon, dossier):
+    """Si le zip n'a pas livré un dossier « <dossier>/ » portant son .toc mais
+    qu'on trouve « <dossier>.toc » ailleurs (à plat, ou sous un wrapper), on
+    reconstruit un dossier proprement nommé à partir des fichiers qui
+    entourent ce .toc. Rend True si un re-racinage a eu lieu.
+
+    ⚠️ On ne pose JAMAIS un contenu sans .toc : si aucun « <dossier>.toc »
+    n'existe nulle part, on ne touche à rien et le garde-fou lèvera."""
+    source = _toc_quelque_part(tampon, dossier)
+    if source is None:
+        return False
+    # On fige la liste AVANT de créer la destination : sur un zip à plat,
+    # `source` est le tampon lui-même, et copier « ce qu'on est en train
+    # d'écrire » partait en récursion infinie (mesuré au banc). On saute
+    # aussi le dossier de travail par précaution.
+    entrees = [n for n in os.listdir(source) if n != "__reracine__"]
+    propre = os.path.join(tampon, "__reracine__", dossier)
+    os.makedirs(propre, exist_ok=True)
+    for nom in entrees:
+        chemin = os.path.join(source, nom)
+        cible = os.path.join(propre, nom)
+        if os.path.isdir(chemin):
+            shutil.copytree(chemin, cible, dirs_exist_ok=True)
+        else:
+            shutil.copy2(chemin, cible)
+    return True
+
+
+def _contenu_pour_message(tampon):
+    """Ce qu'on a VRAIMENT trouvé dans le zip, pour une erreur utile."""
+    hauts = sorted({os.path.relpath(os.path.join(r, f), tampon)
+                    .split(os.sep)[0]
+                    for r, _d, fs in os.walk(tampon) for f in fs})[:8]
+    tocs = sorted(os.path.relpath(os.path.join(r, f), tampon)
+                  for r, _d, fs in os.walk(tampon) for f in fs
+                  if f.lower().endswith(".toc"))[:8]
+    return hauts, tocs
+
+
 def installer_addon_zip(chemin_zip, jeu, dossier):
     """Déballe un zip d'addon dans Interface\\AddOns. Le zip peut contenir le
     dossier à sa racine, ou (archive GitHub) un dossier intermédiaire
-    « Depot-branche/ » : on cherche les .toc et on re-racine.
+    « Depot-branche/ », ou les fichiers à plat : on cherche les .toc et on
+    re-racine sous le nom de la fiche.
 
     26/07/2026 — on installe TOUS les dossiers d'addon du zip, plus seulement
     celui qui porte le nom de la fiche. DragonUI se livre en DEUX dossiers
@@ -505,6 +557,12 @@ def installer_addon_zip(chemin_zip, jeu, dossier):
     le bouton DragonUI qui disparaît du menu Échap (gamemenu.lua:204). Deux
     joueurs sont allés chercher le dossier manquant sur le dépôt d'origine ;
     ce n'était pas à eux de le faire.
+
+    32/08/2026 (programme 32, bloc E) — quand le dossier attendu n'est pas
+    trouvé, on TENTE de re-raciner à partir d'un « <dossier>.toc » découvert
+    ailleurs (zip à plat, wrapper de sources) AVANT de renoncer. Le garde-fou
+    reste strict : sans .toc du bon nom, on ne pose rien, et l'erreur dit ce
+    qui a été trouvé.
 
     Rend la liste des noms de dossiers réellement installés."""
     addons = os.path.join(jeu, "Interface", "AddOns")
@@ -517,10 +575,21 @@ def installer_addon_zip(chemin_zip, jeu, dossier):
         # faisait, pas nous — onze archives orphelines traînaient dans le
         # %TEMP% de Dan, une par installation d'addon depuis le début)
         if not any(n.lower() == dossier.lower() for n, _c in sources):
-            # Garde-fou inchangé : si l'addon attendu n'est pas là, c'est que
-            # l'URL a changé de contenu — on ne pose RIEN plutôt que n'importe
-            # quoi dans le dossier AddOns du joueur.
-            raise ValueError("le zip ne contient pas " + dossier + ".toc")
+            # Tentative de re-racinage (zip à plat / wrapper) avant d'abandonner.
+            if _reraciner(tampon, dossier):
+                sources = dossiers_addon_du_zip(tampon)
+        if not any(n.lower() == dossier.lower() for n, _c in sources):
+            # Garde-fou : si l'addon attendu n'est toujours pas là, on ne pose
+            # RIEN — mais l'erreur DIT ce qui a été trouvé, pour que le joueur
+            # (et Dan) sache quoi faire.
+            hauts, tocs = _contenu_pour_message(tampon)
+            raise ValueError(
+                "le zip ne contient pas %s.toc.\n"
+                "Trouvé à la racine : %s\n"
+                "Fichiers .toc présents : %s"
+                % (dossier,
+                   ", ".join(hauts) or "(rien)",
+                   ", ".join(tocs) or "(aucun)"))
         poses = []
         for nom, source in sources:
             cible = os.path.join(addons, nom)

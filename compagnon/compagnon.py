@@ -63,14 +63,39 @@ PAGE_RELEASES = "https://github.com/" + DEPOT + "/releases"
 # infinie du 25-28/07 : le Hub comparait le .toc au tag et proposait la mise à
 # jour pour toujours. verifier_tout.py et publier_github.py refusent tout
 # écart, sans option pour passer outre.
-VERSION_COMPAGNON = "3.4.3"
+VERSION_COMPAGNON = "3.5.0"
 
 # Salon des rapports : URL du webhook Discord (fournie par le mainteneur).
 # VIDE -> le bouton « Envoyer » n'existe pas, seul « Copier » reste (aucun
 # envoi réseau). Quand il est renseigné, « Envoyer » poste le rapport en pièce
 # jointe .txt dans le salon — le rapport ne contient QUE des textes du jeu et
 # des numéros de sorts/objets, jamais d'information personnelle.
-WEBHOOK_RAPPORTS = ""    # renseigné uniquement dans l'exe distribué
+def _lire_webhook():
+    """L'URL du webhook des rapports — HORS du code (programme 33, bloc 0).
+
+    Une URL de webhook EST le droit d'écrire dans le salon : elle ne doit
+    plus jamais entrer dans un fichier suivi par git (elle y était en dur, et
+    le dépôt devient poussable). Trois sources, dans l'ordre :
+      1. la variable d'environnement ASCENSIONFR_WEBHOOK (build, cloud, dev) ;
+      2. un fichier EMBARQUÉ dans l'exe : assets/webhook.local.txt, écrit au
+         build depuis cette même variable par outils/injecter_webhook.py
+         (gitignoré via *.local.txt) — c'est lui que lit l'exe distribué ;
+      3. rien -> "" : « Envoyer » disparaît, « Copier » reste (aucun réseau).
+    """
+    valeur = os.environ.get("ASCENSIONFR_WEBHOOK", "").strip()
+    if valeur:
+        return valeur
+    base = sys._MEIPASS if getattr(sys, "frozen", False) \
+        else os.path.dirname(os.path.abspath(__file__))
+    try:
+        with open(os.path.join(base, "assets", "webhook.local.txt"),
+                  encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+WEBHOOK_RAPPORTS = _lire_webhook()
 DISCORD = "https://discord.gg/kFJGDJbeay"
 # Soutien au créateur. La traduction reste gratuite : le bouton est volontaire-
 # ment secondaire (contour seul) pour ne pas concurrencer l'envoi de rapport.
