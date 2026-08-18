@@ -235,6 +235,13 @@ jobs:
       # Aucun `set -x`, aucun `cat` du fichier, aucun message qui recrache la
       # ligne : le secret transite par une variable d'environnement et n'est
       # jamais écrit sur la sortie.
+      # DEPUIS LE PROGRAMME 33 (11/08/2026), la valeur n'est plus une
+      # affectation dans compagnon.py : _lire_webhook() lit la variable
+      # d'environnement ASCENSIONFR_WEBHOOK, puis assets/webhook.local.txt
+      # (embarqué dans l'exe par le .spec, gitignoré). L'ancienne injection
+      # cherchait « WEBHOOK_RAPPORTS = "" » et échouait franchement —
+      # « 0 affectation traitée » au premier run distribution post-33
+      # (18/08). On écrit donc le FICHIER, comme outils/injecter_webhook.py.
       - name: Injecter le webhook dans la source
         if: env.MODE == 'distribution'
         env:
@@ -242,43 +249,26 @@ jobs:
         run: |
           set -eu
           python - <<'PY'
-          import io, os, re, sys
+          import io, os, sys
 
-          CHEMIN = "compagnon/compagnon.py"
-          NOM = "WEBHOOK_RAPPORTS"
-          secret = os.environ["WEBHOOK"]
-
-          texte = io.open(CHEMIN, encoding="utf-8").read()
-
-          # Le motif de secrets_publication.py, à l'identique : le reste de la
-          # ligne (le commentaire) est préservé, seule la VALEUR change.
-          motif = re.compile(r"""(?m)^(\s*%s\s*=\s*)(["'])(?:\\.|(?!\2).)*\2"""
-                             % re.escape(NOM))
-
-          attendues = len(re.findall(r"(?m)^\s*%s\s*=" % re.escape(NOM), texte))
-          if attendues != 1:
-              print("::error::%d affectation(s) de %s trouvée(s), 1 attendue."
-                    % (attendues, NOM))
+          CHEMIN = "compagnon/assets/webhook.local.txt"
+          secret = os.environ["WEBHOOK"].strip()
+          if not secret:
+              print("::error::le secret WEBHOOK_RAPPORTS est vide.")
               sys.exit(1)
 
-          texte, faites = motif.subn(
-              lambda m: "%s%s%s%s" % (m.group(1), m.group(2), secret, m.group(2)),
-              texte)
-          if faites != attendues:
-              print("::error::%d affectation(s) traitée(s) sur %d."
-                    % (faites, attendues))
-              sys.exit(1)
+          os.makedirs(os.path.dirname(CHEMIN), exist_ok=True)
+          io.open(CHEMIN, "w", encoding="utf-8").write(secret)
 
-          io.open(CHEMIN, "w", encoding="utf-8").write(texte)
-          # On ne réaffiche RIEN du fichier. On prouve autrement :
-          print("injection faite : %d affectation(s) traitée(s)" % faites)
-
-          # Contrôle indépendant, toujours sans montrer la valeur.
+          # On ne réaffiche RIEN. On prouve autrement : le fichier existe,
+          # porte exactement le secret, et la source lit bien ce fichier.
           relu = io.open(CHEMIN, encoding="utf-8").read()
-          vide = re.search(r'(?m)^\s*WEBHOOK_RAPPORTS\s*=\s*""', relu)
-          print("la ligne est-elle encore vide :", bool(vide))
-          print("occurrences du secret dans la source :", relu.count(secret))
-          if vide or relu.count(secret) != 1:
+          print("fichier écrit :", CHEMIN)
+          print("longueur écrite/relue identique :", len(relu) == len(secret))
+          src = io.open("compagnon/compagnon.py", encoding="utf-8").read()
+          print("la source lit webhook.local.txt :",
+                "webhook.local.txt" in src)
+          if relu != secret or "webhook.local.txt" not in src:
               sys.exit(1)
           PY
 
