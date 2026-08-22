@@ -35,12 +35,21 @@ Les **décors** de la fenêtre sont générés par
 votre propre installation du jeu** : aucune image du jeu n'est redistribuée
 ici, fidèle au principe du projet.
 
-## Reconstruire l'exe soi-même
+## Reconstruire le binaire soi-même
+
+Environnement géré par [uv](https://docs.astral.sh/uv/) — `pyproject.toml` et
+`uv.lock` sont à la racine du dépôt :
 
 ```
-pip install customtkinter pyinstaller lupa pillow certifi
-python -m PyInstaller AscensionFR_Hub.spec
+uv sync
+cd compagnon
+uv run python -m PyInstaller AscensionFR_Hub.spec
 ```
+
+PyInstaller ne fait pas de compilation croisée : le binaire produit correspond
+à la plateforme sur laquelle vous lancez la commande (`.exe` sous Windows,
+binaire sans extension sous Linux/macOS). Pour reconstruire le `.exe`
+distribué en release, il faut lancer cette commande **depuis Windows**.
 
 L'exe distribué en release s'appelle `AscensionFR_Compagnon.exe` (ce nom
 permet aux anciens Compagnons de se mettre à jour vers le Hub) ; le `.spec`
